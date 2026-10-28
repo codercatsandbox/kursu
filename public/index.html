@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kürsü · Ders ve Eğitim Takibi</title>
+  <meta name="description" content="Kürsü · AYBÜ dersleri, eğitimler ve GNO takibi için lokal panel">
+  <meta name="theme-color" content="#0e1118">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <a class="brand" href="#" data-tab-link="bugun">
+        <img class="logo" src="/logo.svg" alt="" width="44" height="44">
+        <span>
+          <strong>Kürsü</strong>
+          <small id="brandSub">2026-2027 Güz · Ders ve Eğitim Takibi</small>
+        </span>
+      </a>
+
+      <nav class="tabs" aria-label="Bölümler">
+        <button class="tab active" data-tab="bugun">Bugün</button>
+        <button class="tab" data-tab="dersler">Dersler</button>
+        <button class="tab" data-tab="takvim">Takvim</button>
+        <button class="tab" data-tab="egitimler">Eğitimler</button>
+        <button class="tab" data-tab="notlar">Notlar</button>
+        <button class="tab" data-tab="ozet">Özet</button>
+        <button class="tab" data-tab="ayarlar">Ayarlar</button>
+      </nav>
+    </header>
+
+    <main>
+      <!-- ============================================================ BUGÜN -->
+      <section id="tab-bugun" class="tab-panel active">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow" id="dayEyebrow">Bugün</p>
+            <h1 id="dayTitle">Günlük kayıt</h1>
+          </div>
+          <div class="date-nav">
+            <button id="prevDay" class="icon-btn" type="button" aria-label="Önceki gün">‹</button>
+            <input id="dateInput" type="date" aria-label="Kayıt tarihi">
+            <button id="nextDay" class="icon-btn" type="button" aria-label="Sonraki gün">›</button>
+            <button id="todayBtn" class="ghost-btn" type="button">Bugüne dön</button>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="todayStats" aria-live="polite"></div>
+
+        <form id="dayForm" autocomplete="off">
+          <div class="today-layout">
+            <div class="panel log-panel">
+              <div class="panel-head">
+                <h2>Ders ve eğitim kayıtları</h2>
+                <span class="hint">dakika + konu + aktivite</span>
+              </div>
+              <div class="log-table">
+                <div class="log-head">
+                  <span>Ders / eğitim</span>
+                  <span>Konu / milestone</span>
+                  <span>Aktivite</span>
+                  <span class="num">Dakika</span>
+                </div>
+                <div id="logRows" class="log-rows"></div>
+              </div>
+              <div class="log-footer">
+                <span>Toplam</span>
+                <strong id="liveMinutes">0 dk</strong>
+                <span id="liveEntries" class="muted"></span>
+              </div>
+            </div>
+
+            <div class="side-stack">
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>Günün durumu</h2>
+                  <span class="hint">isteğe bağlı</span>
+                </div>
+                <div class="mood-block">
+                  <span class="mood-label">Ruh hali</span>
+                  <div class="mood-row" id="moodRow" role="group" aria-label="Günün ruh hali">
+                    <button type="button" class="mood" data-mood="1" title="Çok zor">1</button>
+                    <button type="button" class="mood" data-mood="2" title="Zor">2</button>
+                    <button type="button" class="mood" data-mood="3" title="Normal">3</button>
+                    <button type="button" class="mood" data-mood="4" title="İyi">4</button>
+                    <button type="button" class="mood" data-mood="5" title="Harika">5</button>
+                  </div>
+                </div>
+                <div class="mood-block">
+                  <span class="mood-label">Enerji</span>
+                  <div class="mood-row" id="energyRow" role="group" aria-label="Günün enerjisi">
+                    <button type="button" class="mood energy" data-energy="1" title="Bitkin">1</button>
+                    <button type="button" class="mood energy" data-energy="2" title="Düşük">2</button>
+                    <button type="button" class="mood energy" data-energy="3" title="Normal">3</button>
+                    <button type="button" class="mood energy" data-energy="4" title="İyi">4</button>
+                    <button type="button" class="mood energy" data-energy="5" title="Yüksek">5</button>
+                  </div>
+                </div>
+                <label class="field">
+                  <span>Not</span>
+                  <textarea id="noteInput" rows="4" maxlength="2000" placeholder="Neyi iyi yaptın, nerede takıldın? Yarın için tek odak..."></textarea>
+                </label>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>Yaklaşan</h2>
+                  <span class="hint">14 gün</span>
+                </div>
+                <div id="todayUpcoming" class="mini-list"></div>
+              </div>
+
+              <div class="panel">
+                <div class="panel-head">
+                  <h2>Riskler</h2>
+                  <span class="hint">otomatik</span>
+                </div>
+                <div id="todayRisks" class="mini-list"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="save-bar">
+            <div class="save-summary">
+              <span id="saveSummary">0 dk · 0 kayıt</span>
+              <span class="hint">Ctrl + Enter</span>
+            </div>
+            <button type="submit" class="primary-btn" id="saveDayBtn">Kaydet</button>
+          </div>
+        </form>
+      </section>
+
+      <!-- ============================================================ DERSLER -->
+      <section id="tab-dersler" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Müfredat</p>
+            <h1>Dersler</h1>
+          </div>
+          <button class="primary-btn" id="addCourseBtn" type="button">Ders ekle</button>
+        </div>
+
+        <div class="course-grid" id="courseGrid"></div>
+
+        <div class="panel add-panel" id="courseAddPanel" hidden>
+          <div class="panel-head">
+            <h2>Yeni ders</h2>
+            <button class="icon-btn" type="button" data-close-panel="courseAddPanel" aria-label="Kapat">×</button>
+          </div>
+          <form id="courseForm" class="form-grid three">
+            <label class="field"><span>Kod</span><input id="courseCode" maxlength="20" placeholder="CENG301" required></label>
+            <label class="field span-2"><span>Ders adı</span><input id="courseName" maxlength="120" placeholder="Database Management Systems" required></label>
+            <label class="field span-2"><span>Hoca</span><input id="courseInstructor" maxlength="80" placeholder="Dr. ..."></label>
+            <label class="field"><span>AKTS</span><input id="courseEcts" type="number" min="0" max="30" step="1" value="5"></label>
+            <label class="field"><span>Kategori</span>
+              <select id="courseCategory">
+                <option value="zorunlu">Zorunlu</option>
+                <option value="secmeli">Seçmeli</option>
+                <option value="staj">Staj</option>
+                <option value="diger">Diğer</option>
+              </select>
+            </label>
+            <label class="field"><span>Hedef not</span>
+              <select id="courseTarget">
+                <option value="">—</option>
+                <option>AA</option><option>BA</option><option>BB</option><option>CB</option>
+                <option>CC</option><option>DC</option><option>DD</option><option>FD</option><option>FF</option>
+              </select>
+            </label>
+            <label class="field"><span>Not türü</span>
+              <select id="courseGrading">
+                <option value="letter">Harf notu</option>
+                <option value="pass_fail">Geçti / kaldı</option>
+              </select>
+            </label>
+            <label class="field"><span>Renk</span><input id="courseColor" type="color" value="#f0b45a"></label>
+            <div class="form-actions span-3">
+              <button type="submit" class="primary-btn">Dersi kaydet</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ============================================================ TAKVİM -->
+      <section id="tab-takvim" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Plan</p>
+            <h1>Takvim</h1>
+          </div>
+          <div class="segmented" id="calendarRange" role="group" aria-label="Takvim aralığı">
+            <button type="button" data-days="14">14 gün</button>
+            <button type="button" data-days="30" class="active">30 gün</button>
+            <button type="button" data-days="60">60 gün</button>
+          </div>
+        </div>
+
+        <div class="calendar-layout">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Yaklaşan</h2>
+              <span class="hint" id="calendarMeta"></span>
+            </div>
+            <div id="calendarList" class="calendar-list"></div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Görev ekle</h2>
+              <span class="hint">teslim / başvuru / idari</span>
+            </div>
+            <form id="taskForm" class="stack-form">
+              <label class="field"><span>Başlık</span><input id="taskTitle" maxlength="160" placeholder="TÜBİTAK son kontrol" required></label>
+              <div class="form-grid two">
+                <label class="field"><span>Tür</span>
+                  <select id="taskKind">
+                    <option value="teslim">Teslim</option>
+                    <option value="basvuru">Başvuru</option>
+                    <option value="sinav">Sınav</option>
+                    <option value="proje">Proje</option>
+                    <option value="idari">İdari</option>
+                    <option value="okuma">Okuma</option>
+                  </select>
+                </label>
+                <label class="field"><span>Öncelik</span>
+                  <select id="taskPriority">
+                    <option value="normal">Normal</option>
+                    <option value="yuksek">Yüksek</option>
+                    <option value="dusuk">Düşük</option>
+                  </select>
+                </label>
+              </div>
+              <label class="field"><span>Tarih / saat</span><input id="taskDue" type="datetime-local"></label>
+              <div class="form-grid two">
+                <label class="field"><span>Ders</span><select id="taskCourse"><option value="">—</option></select></label>
+                <label class="field"><span>Eğitim</span><select id="taskTraining"><option value="">—</option></select></label>
+              </div>
+              <label class="field"><span>Not</span><input id="taskNote" maxlength="500" placeholder="opsiyonel"></label>
+              <button type="submit" class="primary-btn">Görevi ekle</button>
+            </form>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ EĞİTİMLER -->
+      <section id="tab-egitimler" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Programlar</p>
+            <h1>Eğitimler</h1>
+          </div>
+          <button class="primary-btn" id="addTrainingBtn" type="button">Eğitim ekle</button>
+        </div>
+
+        <div class="training-grid" id="trainingGrid"></div>
+
+        <div class="panel add-panel" id="trainingAddPanel" hidden>
+          <div class="panel-head">
+            <h2>Yeni eğitim / program</h2>
+            <button class="icon-btn" type="button" data-close-panel="trainingAddPanel" aria-label="Kapat">×</button>
+          </div>
+          <form id="trainingForm" class="form-grid three">
+            <label class="field span-2"><span>Ad</span><input id="trainingName" maxlength="160" placeholder="Anadolu Logic FPGA Akademisi" required></label>
+            <label class="field"><span>Kurum</span><input id="trainingProvider" maxlength="100" placeholder="Anadolu Logic"></label>
+            <label class="field"><span>Kategori</span>
+              <select id="trainingCategory">
+                <option value="egitim">Eğitim</option>
+                <option value="program">Program</option>
+                <option value="basvuru">Başvuru</option>
+                <option value="kurs">Kurs</option>
+                <option value="proje">Proje</option>
+              </select>
+            </label>
+            <label class="field"><span>Durum</span>
+              <select id="trainingStatus">
+                <option value="devam">Devam</option>
+                <option value="planlandi">Planlandı</option>
+                <option value="bitti">Bitti</option>
+                <option value="iptal">İptal</option>
+              </select>
+            </label>
+            <label class="field"><span>Toplam saat</span><input id="trainingHours" type="number" min="0" step="1" value="0"></label>
+            <label class="field"><span>Başlangıç</span><input id="trainingStart" type="date"></label>
+            <label class="field"><span>Bitiş</span><input id="trainingEnd" type="date"></label>
+            <label class="field span-3"><span>Not</span><input id="trainingNote" maxlength="500" placeholder="opsiyonel"></label>
+            <div class="form-actions span-3"><button type="submit" class="primary-btn">Eğitimi kaydet</button></div>
+          </form>
+        </div>
+      </section>
+
+      <!-- ============================================================ NOTLAR -->
+      <section id="tab-notlar" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Akademik</p>
+            <h1>Notlar ve GNO</h1>
+          </div>
+          <p class="hint head-note">AYBÜ ölçeği · AKTS ağırlıklı</p>
+        </div>
+
+        <div class="stats-grid" id="gnoStats"></div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Ders notları</h2>
+              <span class="hint">final notu girince GNO’ya işler</span>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table" id="gradeTable">
+                <thead>
+                  <tr>
+                    <th>Ders</th>
+                    <th class="num">AKTS</th>
+                    <th>Hedef</th>
+                    <th>Final</th>
+                    <th>Projeksiyon</th>
+                    <th class="num">Puan</th>
+                    <th class="num">Katkı</th>
+                  </tr>
+                </thead>
+                <tbody id="gradeTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>GNO projeksiyonu</h2>
+              <span class="hint">senaryo</span>
+            </div>
+            <div id="gnoDetail" class="gno-detail"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ ÖZET -->
+      <section id="tab-ozet" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Günlük özet</p>
+            <h1>Özet</h1>
+          </div>
+          <div class="segmented" id="summaryRange" role="group" aria-label="Özet aralığı">
+            <button type="button" data-days="7">7 gün</button>
+            <button type="button" data-days="30" class="active">30 gün</button>
+            <button type="button" data-days="90">90 gün</button>
+          </div>
+        </div>
+
+        <div class="stats-grid" id="summaryStats"></div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Çalışma süresi</h2>
+              <span class="hint" id="summaryChartMeta"></span>
+            </div>
+            <div class="chart" id="summaryChart"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Ders / eğitim dağılımı</h2>
+              <span class="hint">seçili aralık</span>
+            </div>
+            <div id="summaryBreakdown" class="breakdown"></div>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Günlük özet</h2>
+              <span class="hint">dün → bugün → yarın</span>
+            </div>
+            <div id="dailySummary" class="summary-text"></div>
+          </div>
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Son 24 hafta</h2>
+              <span class="hint">kutu = gün</span>
+            </div>
+            <div class="heatmap-wrap"><div id="heatmap" class="heatmap"></div></div>
+            <div class="heatmap-legend">
+              <span>az</span>
+              <i class="hm l0"></i><i class="hm l1"></i><i class="hm l2"></i><i class="hm l3"></i><i class="hm l4"></i>
+              <span>çok</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================ AYARLAR -->
+      <section id="tab-ayarlar" class="tab-panel">
+        <div class="section-head">
+          <div>
+            <p class="eyebrow">Kurulum</p>
+            <h1>Ayarlar</h1>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <form class="panel" id="settingsForm">
+            <div class="panel-head">
+              <h2>Hedefler</h2>
+              <span class="hint">gerçekçi başla, 2 haftada bir artır</span>
+            </div>
+            <label class="field">
+              <span>Ad</span>
+              <input id="studentNameInput" maxlength="60" placeholder="Ali Haydar Sucu">
+            </label>
+            <div class="form-grid three">
+              <label class="field"><span>Günlük süre (saat)</span><input id="dailyHours" type="number" min="0" max="24" step="0.5"></label>
+              <label class="field"><span>Haftalık süre (saat)</span><input id="weeklyHours" type="number" min="0" max="168" step="0.5"></label>
+              <label class="field"><span>GNO hedefi</span><input id="gnoTarget" type="number" min="0" max="4" step="0.01"></label>
+            </div>
+            <div class="form-grid three">
+              <label class="field"><span>Önceki GNO</span><input id="previousGno" type="number" min="0" max="4" step="0.01"></label>
+              <label class="field"><span>Önceki AKTS</span><input id="previousEcts" type="number" min="0" max="400" step="1"></label>
+              <label class="field"><span>Mezuniyet AKTS</span><input id="targetEcts" type="number" min="1" max="400" step="1"></label>
+            </div>
+            <p class="hint">GNO projeksiyonu bu üç değere göre hesaplanır. Önceki AKTS, başarılı derslerin AKTS toplamıdır.</p>
+            <button type="submit" class="primary-btn">Ayarları kaydet</button>
+          </form>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Not ölçeği</h2>
+              <span class="hint">AYBÜ</span>
+            </div>
+            <div class="scale-table" id="scaleTable"></div>
+            <p class="hint">GNO = Σ(AKTS × not puanı) / Σ(AKTS). FD ve FF başarısız sayılır; CENG300 geçti/kaldı olduğu için GNO’ya girmez.</p>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="panel">
+            <div class="panel-head">
+              <h2>Veri</h2>
+              <span class="hint">her şey bu bilgisayarda</span>
+            </div>
+            <p class="label">Veritabanı</p>
+            <code id="dbPath">data/kursu.db</code>
+            <p class="hint">Yedek için bu dosyayı sunucu kapalıyken kopyala.</p>
+            <div class="data-actions">
+              <a class="ghost-btn" href="/api/export.csv?kind=logs">Günlük kayıtlar (CSV)</a>
+              <a class="ghost-btn" href="/api/export.csv?kind=assessments">Değerlendirmeler (CSV)</a>
+              <a class="ghost-btn" href="/api/export.csv?kind=tasks">Görevler (CSV)</a>
+            </div>
+
+            <div class="import-box">
+              <p class="label">CSV / HTML içe aktar</p>
+              <div class="form-grid two">
+                <label class="field"><span>Tür</span>
+                  <select id="importKind">
+                    <option value="logs">Günlük kayıtlar</option>
+                    <option value="assessments">Değerlendirmeler</option>
+                    <option value="tasks">Görevler</option>
+                  </select>
+                </label>
+                <label class="field"><span>Dosya</span><input id="importFile" type="file" accept=".csv,text/csv,.html,text/html"></label>
+              </div>
+              <p class="hint">Dışa aktardığın CSV dosyasını veya Moodle tablosunu içeren HTML dosyasını seç. Aynı başlık/tarih varsa güncellenir; günlük kayıtlar mevcut kayıtlarla birleştirilir.</p>
+              <div class="data-actions">
+                <button type="button" class="ghost-btn" id="importBtn">İçe aktar</button>
+                <span class="hint" id="importMessage"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-head">
+              <h2>AYBÜZEM</h2>
+              <span class="hint" id="aybuzemStatus">yapılandırılmadı</span>
+            </div>
+            <form id="aybuzemForm" class="stack-form">
+              <label class="field"><span>Adres</span><input id="aybuzemBase" value="https://aybuzem.aybu.edu.tr"></label>
+              <div class="form-grid three">
+                <label class="field"><span>Kullanıcı adı</span><input id="aybuzemUser" autocomplete="username"></label>
+                <label class="field"><span>Şifre</span><input id="aybuzemPass" type="password" autocomplete="current-password" placeholder="sadece ilk giriş"></label>
+                <label class="field"><span>&nbsp;</span><button type="submit" class="ghost-btn">Kaydet</button></label>
+              </div>
+            </form>
+            <div class="data-actions">
+              <button type="button" class="primary-btn" id="aybuzemSync">Şimdi senkronize et</button>
+              <span class="hint" id="aybuzemMessage">Moodle mobil web servisi gerekir; veriler salt okunur çekilir.</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span>Kürsü · 2026-2027 Güz · lokal ders ve eğitim takibi</span>
+      <span>Veriler yalnızca bu bilgisayarda saklanır.</span>
+    </footer>
+  </div>
+
+  <dialog id="courseDialog" class="dialog">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow" id="courseDialogEyebrow">Ders</p>
+        <h2 id="courseDialogTitle">Ders detayı</h2>
+      </div>
+      <button class="icon-btn" type="button" data-close-dialog="courseDialog" aria-label="Kapat">×</button>
+    </div>
+    <div id="courseDialogBody" class="dialog-body"></div>
+  </dialog>
+
+  <dialog id="trainingDialog" class="dialog">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow" id="trainingDialogEyebrow">Eğitim</p>
+        <h2 id="trainingDialogTitle">Eğitim detayı</h2>
+      </div>
+      <button class="icon-btn" type="button" data-close-dialog="trainingDialog" aria-label="Kapat">×</button>
+    </div>
+    <div id="trainingDialogBody" class="dialog-body"></div>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
