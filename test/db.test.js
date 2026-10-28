@@ -51,6 +51,10 @@ test('GNO varsayımları ve MATH101 DD → AA senaryosu hesaplanır', () => {
   assert.equal(gno.repeat_scenario.ects, 6);
   assert.equal(gno.repeat_scenario.delta_points, 18);
   assert.ok(gno.repeat_scenario.aa_gno > gno.repeat_scenario.dd_gno);
+  assert.equal(gno.target.remaining_ects, 70);
+  assert.equal(gno.target.required_average, 4.1);
+  assert.equal(gno.target.remaining_ects_from_now, 111);
+  assert.equal(gno.target.required_average_from_now, 3.96);
 });
 
 test('günlük kayıt ders ve eğitim loglarını birlikte saklar', () => {

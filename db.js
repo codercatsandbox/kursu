@@ -1435,6 +1435,10 @@ export function getGno() {
   const requiredAverage = remainingEcts > 0
     ? round2((settings.gno_target * targetEcts - cumulativePoints) / remainingEcts)
     : null;
+  const remainingEctsFromNow = Math.max(0, targetEcts - previousEcts);
+  const requiredAverageFromNow = remainingEctsFromNow > 0
+    ? round2((settings.gno_target * targetEcts - previousPoints) / remainingEctsFromNow)
+    : null;
 
   const completedRows = rows.filter((r) => r.grading_type === 'letter' && r.final_grade && r.point !== null);
   const completedEcts = completedRows.reduce((sum, r) => sum + r.ects, 0);
@@ -1477,7 +1481,10 @@ export function getGno() {
       ects: targetEcts,
       remaining_ects: remainingEcts,
       required_average: requiredAverage,
+      remaining_ects_from_now: remainingEctsFromNow,
+      required_average_from_now: requiredAverageFromNow,
       feasible: requiredAverage !== null && requiredAverage <= 4.0,
+      feasible_from_now: requiredAverageFromNow !== null && requiredAverageFromNow <= 4.0,
     },
     repeat_scenario: repeatScenario,
     scale: GRADE_SCALE,
