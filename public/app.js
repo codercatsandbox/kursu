@@ -1446,10 +1446,11 @@ function renderGrades() {
     <div class="gno-line"><span>Önceki GNO × AKTS</span><b>${fmtPoint(gno.settings.previous_gno)} × ${gno.settings.previous_ects} = ${fmtPoint(gno.settings.previous_gno * gno.settings.previous_ects)}</b></div>
     <div class="gno-line"><span>Dönem puanı</span><b>${fmtPoint(gno.term.points)} / ${gno.term.ects} AKTS</b></div>
     <div class="gno-line"><span>Kümülatif</span><b>${fmtPoint(gno.cumulative.points)} / ${gno.cumulative.ects} AKTS = ${fmtPoint(gno.cumulative.gno)}</b></div>
-    <div class="gno-line"><span>Mezuniyet hedefi</span><b>${fmtPoint(gno.settings.gno_target)} × ${gno.target.ects} AKTS</b></div>
+    <div class="gno-line"><span>Mezuniyet hedefi</span><b>${fmtPoint(gno.settings.gno_target)} × ${gno.target.ects} AKTS minimum</b></div>
     <div class="gno-line"><span>Bugünden kalan AKTS</span><b>${gno.target.remaining_ects_from_now}</b></div>
     <div class="gno-line"><span>Mevcut dönem dahil gereken ortalama</span><b>${gno.target.required_average_from_now !== null ? fmtPoint(gno.target.required_average_from_now) : '—'} / 4.00</b></div>
     <div class="gno-line"><span>Mevcut dönem projeksiyonu sonrası</span><b>${gno.target.required_average !== null ? fmtPoint(gno.target.required_average) : '—'} / 4.00 · ${gno.target.remaining_ects} AKTS</b></div>
+    ${gno.target.extra_ects_at_maximum > 0 ? `<div class="gno-line"><span>4.00 ile ek gereken AKTS</span><b>${gno.target.extra_ects_at_maximum}</b></div>` : ''}
     ${gno.repeat_scenario ? `<div class="gno-line"><span>${esc(gno.repeat_scenario.code)} DD → AA senaryosu</span><b>+${fmtPoint(gno.repeat_scenario.delta_points)} puan · GNO ${fmtPoint(gno.repeat_scenario.dd_gno)} → ${fmtPoint(gno.repeat_scenario.aa_gno)}</b></div>` : ''}
     ${gno.target.required_average !== null && gno.target.required_average > 4
       ? '<div class="gno-warning">Bu hedef, mevcut GNO ve AKTS varsayımıyla 4.00 üstü bir ortalama gerektiriyor. Tekrar dersleri, yaz dönemi veya hedef AKTS’yi güncelle.</div>'

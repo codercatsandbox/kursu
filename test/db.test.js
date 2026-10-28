@@ -46,15 +46,17 @@ test('GNO varsayımları ve MATH101 DD → AA senaryosu hesaplanır', () => {
   assert.equal(gno.settings.previous_gno, 3.12);
   assert.equal(gno.settings.previous_ects, 129);
   assert.equal(gno.term.ects, 41);
-  assert.equal(gno.cumulative.ects, 170);
+  assert.equal(gno.cumulative.ects, 164);
+  assert.equal(gno.cumulative.gno, 3.35);
   assert.equal(gno.repeat_scenario.code, 'MATH101');
   assert.equal(gno.repeat_scenario.ects, 6);
   assert.equal(gno.repeat_scenario.delta_points, 18);
   assert.ok(gno.repeat_scenario.aa_gno > gno.repeat_scenario.dd_gno);
-  assert.equal(gno.target.remaining_ects, 70);
-  assert.equal(gno.target.required_average, 4.1);
-  assert.equal(gno.target.remaining_ects_from_now, 111);
-  assert.equal(gno.target.required_average_from_now, 3.96);
+  assert.equal(gno.target.remaining_ects, 76);
+  assert.equal(gno.target.required_average, 3.85);
+  assert.equal(gno.target.remaining_ects_from_now, 117);
+  assert.equal(gno.target.required_average_from_now, 3.81);
+  assert.equal(gno.target.extra_ects_at_maximum, 0);
 });
 
 test('günlük kayıt ders ve eğitim loglarını birlikte saklar', () => {

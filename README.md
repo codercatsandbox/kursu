@@ -63,11 +63,11 @@ GNO varsayılanları:
 
 - Önceki GNO: 3.12
 - Önceki AKTS: 129
-- Mezuniyet AKTS: 240
+- Mezuniyet AKTS: 240 (minimum; ek dersler ve not yükseltmeleri ayrıca planlanabilir)
 - Hedef GNO: 3.51
 - Ölçek: AA 4.00, BA 3.50, BB 3.00, CB 2.50, CC 2.00, DC 1.50, DD 1.00, FD 0.50, FF 0.00
 
-Bu varsayımlar Ayarlar sekmesinden değiştirilebilir. Hedef 4.00 üstü bir ortalama gerektiriyorsa panel bunu açıkça uyarır. Notlar sekmesinde MATH101 için **DD → AA** senaryosu ayrıca gösterilir.
+Bu varsayımlar Ayarlar sekmesinden değiştirilebilir. Tekrar derslerinde eski notun AKTS/puan katkısı çıkarılır ve son deneme esas alınır. Hedef 4.00 üstü bir ortalama gerektiriyorsa panel, minimum 240 AKTS üzerine 4.00'lük ek ders ihtiyacını ayrıca gösterir. Notlar sekmesinde MATH101 için **DD → AA** senaryosu ayrıca gösterilir.
 
 Syllabus verisi:
 

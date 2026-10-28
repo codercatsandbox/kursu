@@ -51,6 +51,8 @@ db.exec(`
     status TEXT NOT NULL DEFAULT 'aktif',
     color TEXT NOT NULL DEFAULT '#f0b45a',
     is_repeat INTEGER NOT NULL DEFAULT 0,
+    replaced_ects INTEGER NOT NULL DEFAULT 0,
+    replaced_point REAL NOT NULL DEFAULT 0,
     replaces_course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
     grading_type TEXT NOT NULL DEFAULT 'letter',
     external_id TEXT,
@@ -185,6 +187,17 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_milestones_training ON milestones(training_id);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_external ON tasks(source, external_id);
 `);
+
+try {
+  db.exec('ALTER TABLE courses ADD COLUMN replaced_ects INTEGER NOT NULL DEFAULT 0');
+} catch (err) {
+  if (!String(err.message).includes('duplicate column name')) throw err;
+}
+try {
+  db.exec('ALTER TABLE courses ADD COLUMN replaced_point REAL NOT NULL DEFAULT 0');
+} catch (err) {
+  if (!String(err.message).includes('duplicate column name')) throw err;
+}
 
 /* --------------------------------------------------------------- helpers */
 
@@ -354,6 +367,7 @@ const COURSES = [
   {
     code: 'MATH101', name: 'CALCULUS I', instructor: '', ects: 6,
     category: 'zorunlu', target: 'AA', color: '#fb923c', grading: 'letter', repeat: 1,
+    replacedEcts: 6, replacedPoint: 1,
     note: 'Tekrar dersi: DD → AA hedefi. GNO hesabında son deneme esas alınır.',
   },
 ];
@@ -582,16 +596,24 @@ function seed() {
   if (courseCount === 0) {
     const insertCourse = db.prepare(`
       INSERT INTO courses (term_id, code, name, instructor, ects, category, target_grade,
-                           color, is_repeat, grading_type, note, sort_order)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                           color, is_repeat, replaced_ects, replaced_point, grading_type, note, sort_order)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     COURSES.forEach((c, i) => {
       insertCourse.run(
         term.id, c.code, c.name, c.instructor, c.ects, c.category, c.target,
-        c.color, c.repeat ?? 0, c.grading, c.note ?? '', i * 10,
+        c.color, c.repeat ?? 0, c.replacedEcts ?? 0, c.replacedPoint ?? 0,
+        c.grading, c.note ?? '', i * 10,
       );
     });
   }
+
+  db.prepare(`
+    UPDATE courses
+       SET replaced_ects = 6, replaced_point = 1
+     WHERE code = 'MATH101' AND is_repeat = 1
+       AND replaced_ects = 0
+  `).run();
 
   if (db.prepare('SELECT COUNT(*) AS n FROM topics').get().n === 0) {
     const insertTopic = db.prepare(`
@@ -1414,6 +1436,8 @@ export function getGno() {
       grade,
       source,
       point,
+      replaced_ects: c.replaced_ects ?? 0,
+      replaced_point: c.replaced_point ?? 0,
       grading_type: c.grading_type,
       contribution: point !== null ? round2(c.ects * point) : 0,
     };
@@ -1426,8 +1450,13 @@ export function getGno() {
 
   const previousEcts = settings.previous_ects;
   const previousPoints = settings.previous_gno * previousEcts;
-  const cumulativeEcts = previousEcts + termEcts;
-  const cumulativePoints = previousPoints + termPoints;
+  const replacementRows = rows.filter((r) => r.replaced_ects > 0 && r.point !== null);
+  const replacedEcts = replacementRows.reduce((sum, r) => sum + r.replaced_ects, 0);
+  const replacedPoints = replacementRows.reduce((sum, r) => sum + r.replaced_ects * r.replaced_point, 0);
+  const adjustedPreviousEcts = Math.max(0, previousEcts - replacedEcts);
+  const adjustedPreviousPoints = previousPoints - replacedPoints;
+  const cumulativeEcts = adjustedPreviousEcts + termEcts;
+  const cumulativePoints = adjustedPreviousPoints + termPoints;
   const cumulativeGno = cumulativeEcts ? round2(cumulativePoints / cumulativeEcts) : null;
 
   const targetEcts = settings.target_ects;
@@ -1435,10 +1464,15 @@ export function getGno() {
   const requiredAverage = remainingEcts > 0
     ? round2((settings.gno_target * targetEcts - cumulativePoints) / remainingEcts)
     : null;
-  const remainingEctsFromNow = Math.max(0, targetEcts - previousEcts);
+  const remainingEctsFromNow = Math.max(0, targetEcts - adjustedPreviousEcts);
   const requiredAverageFromNow = remainingEctsFromNow > 0
-    ? round2((settings.gno_target * targetEcts - previousPoints) / remainingEctsFromNow)
+    ? round2((settings.gno_target * targetEcts - adjustedPreviousPoints) / remainingEctsFromNow)
     : null;
+  const deficitAtMaximum = Math.max(0, settings.gno_target * targetEcts
+    - cumulativePoints - remainingEcts * 4);
+  const extraEctsAtMaximum = deficitAtMaximum > 0 && settings.gno_target < 4
+    ? Math.ceil(deficitAtMaximum / (4 - settings.gno_target))
+    : 0;
 
   const completedRows = rows.filter((r) => r.grading_type === 'letter' && r.final_grade && r.point !== null);
   const completedEcts = completedRows.reduce((sum, r) => sum + r.ects, 0);
@@ -1452,6 +1486,7 @@ export function getGno() {
     const row = rows.find((r) => r.id === repeatCourse.id);
     const currentContribution = row?.contribution ?? 0;
     const basePoints = cumulativePoints - currentContribution;
+    const scenarioEcts = cumulativeEcts;
     const ddPoint = gradePoint('DD');
     const aaPoint = gradePoint('AA');
     repeatScenario = {
@@ -1460,8 +1495,8 @@ export function getGno() {
       ects: repeatCourse.ects,
       current_grade: row?.grade ?? null,
       current_point: row?.point ?? null,
-      dd_gno: cumulativeEcts ? round2((basePoints + repeatCourse.ects * ddPoint) / cumulativeEcts) : null,
-      aa_gno: cumulativeEcts ? round2((basePoints + repeatCourse.ects * aaPoint) / cumulativeEcts) : null,
+      dd_gno: scenarioEcts ? round2((basePoints + repeatCourse.ects * ddPoint) / scenarioEcts) : null,
+      aa_gno: scenarioEcts ? round2((basePoints + repeatCourse.ects * aaPoint) / scenarioEcts) : null,
       delta_points: round2(repeatCourse.ects * (aaPoint - ddPoint)),
     };
   }
@@ -1483,6 +1518,7 @@ export function getGno() {
       required_average: requiredAverage,
       remaining_ects_from_now: remainingEctsFromNow,
       required_average_from_now: requiredAverageFromNow,
+      extra_ects_at_maximum: extraEctsAtMaximum,
       feasible: requiredAverage !== null && requiredAverage <= 4.0,
       feasible_from_now: requiredAverageFromNow !== null && requiredAverageFromNow <= 4.0,
     },
