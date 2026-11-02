@@ -799,6 +799,34 @@ export function addCourse(payload) {
   return getCourse(Number(info.lastInsertRowid));
 }
 
+export function upsertExternalCourse(payload) {
+  const term = getTerm();
+  if (!term) throw new HttpError(400, 'Önce bir dönem oluştur.');
+  const externalId = text(payload.external_id, 80);
+  const name = text(payload.name, 120) || `AYBÜZEM dersi ${externalId}`;
+  const code = text(payload.code, 20).toUpperCase() || `AYB-${externalId}`;
+  const existing = db.prepare(`
+    SELECT * FROM courses
+     WHERE term_id = ? AND (external_id = ? OR lower(code) = lower(?))
+     LIMIT 1
+  `).get(term.id, externalId, code);
+  if (existing) {
+    if (externalId && existing.external_id !== externalId) {
+      db.prepare('UPDATE courses SET external_id = ? WHERE id = ?').run(externalId, existing.id);
+    }
+    return db.prepare('SELECT * FROM courses WHERE id = ?').get(existing.id);
+  }
+  const info = db.prepare(`
+    INSERT INTO courses (term_id, code, name, instructor, ects, category, color,
+                         grading_type, external_id, sort_order)
+    VALUES (?, ?, ?, '', 0, 'diger', '#94a3b8', 'pass_fail', ?, ?)
+  `).run(
+    term.id, code, name, externalId,
+    (db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS n FROM courses').get().n || 0) + 10,
+  );
+  return db.prepare('SELECT * FROM courses WHERE id = ?').get(Number(info.lastInsertRowid));
+}
+
 export function updateCourse(id, payload) {
   const course = db.prepare('SELECT * FROM courses WHERE id = ?').get(Number(id));
   if (!course) throw new HttpError(404, 'Ders bulunamadı.');

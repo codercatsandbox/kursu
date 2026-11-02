@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HttpError, db, todayISO } from '../db.js';
+import { HttpError, db, todayISO, upsertExternalCourse } from '../db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = process.env.AYBUZEM_CONFIG_PATH
@@ -313,6 +313,11 @@ function matchLocalCourse(course) {
   return db.prepare('SELECT * FROM courses WHERE upper(code) = ?').get(code) ?? null;
 }
 
+function courseCode(course) {
+  const source = `${course.shortname || ''} ${course.fullname || ''}`.toUpperCase();
+  return source.match(/\b[A-Z]{2,5}\d{3}\b/)?.[0] || `AYB-${course.id}`;
+}
+
 export async function syncAybuzem() {
   const config = await readConfig();
   if (!config?.username) {
@@ -339,9 +344,17 @@ export async function syncAybuzem() {
     const site = await callWs(baseUrl, token, 'core_webservice_get_site_info');
     const courses = await callWs(baseUrl, token, 'core_enrol_get_users_courses', { userid: site.userid });
     const localCourses = new Map();
-    const contentSummary = { courses: 0, sections: 0, files: 0, topics: 0, errors: [] };
+    const contentSummary = { courses: 0, createdCourses: 0, sections: 0, files: 0, topics: 0, errors: [] };
     for (const course of Array.isArray(courses) ? courses : []) {
-      const local = matchLocalCourse(course);
+      let local = matchLocalCourse(course);
+      if (!local) {
+        local = upsertExternalCourse({
+          code: courseCode(course),
+          name: course.fullname || course.shortname,
+          external_id: String(course.id),
+        });
+        contentSummary.createdCourses += 1;
+      }
       if (local) {
         localCourses.set(Number(course.id), local);
         db.prepare('UPDATE courses SET external_id = ? WHERE id = ?').run(String(course.id), local.id);

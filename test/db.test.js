@@ -19,6 +19,7 @@ const {
   listTasks,
   saveDay,
   updateAssessment,
+  upsertExternalCourse,
   exportCsv,
 } = await import('../db.js');
 
@@ -140,6 +141,16 @@ test('CENG441 quizleri üç haftada bir Cuma gününe denk gelir', () => {
     () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 06.11', date: '2026-11-06' }),
     /üç haftada bir Cuma/,
   );
+});
+
+test('AYBÜZEM dersi lokal karşılığı yoksa normal ders kaydı oluşturur', () => {
+  const first = upsertExternalCourse({ external_id: '18682', name: 'ÖMP EĞİTİM 2025 GÜZ' });
+  assert.equal(first.code, 'AYB-18682');
+  assert.equal(first.name, 'ÖMP EĞİTİM 2025 GÜZ');
+  assert.equal(first.external_id, '18682');
+
+  const second = upsertExternalCourse({ external_id: '18682', name: 'Değişmemeli' });
+  assert.equal(second.id, first.id);
 });
 
 test('CSV dışa aktarma başlıkları ve kayıtları üretir', () => {
