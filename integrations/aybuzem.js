@@ -48,10 +48,27 @@ function contentRoot() {
   return path.join(desktop, 'CENG 3rd Fall');
 }
 
+function decodeHtmlEntities(value) {
+  return String(value ?? '')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>');
+}
+
 function safePathPart(value, fallback = 'genel') {
-  const cleaned = String(value || fallback).replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
+  let cleaned = decodeHtmlEntities(value || fallback).replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
+  cleaned = cleaned.replace(/[ .]+$/g, '');
   if (!cleaned || cleaned === '.' || cleaned === '..') return fallback;
+  if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(cleaned)) return `_${cleaned}`;
   return cleaned.slice(0, 120);
+}
+
+function contentFileName(content) {
+  const rawName = decodeHtmlEntities(content.filename || `file-${content.type || 'content'}`);
+  if (content.type === 'url' && !/\.[a-z0-9]{2,8}$/i.test(rawName)) return `${rawName}.html`;
+  return rawName;
 }
 
 function contentWithoutUrl(content) {
@@ -99,7 +116,7 @@ async function syncCourseContents(baseUrl, token, sourceId, remoteCourseId, loca
       for (const content of module.contents || []) {
         const safeContent = contentWithoutUrl(content);
         if (content.fileurl) {
-          const filename = safePathPart(content.filename || `file-${content.type || 'content'}`);
+          const filename = safePathPart(contentFileName(content));
           const destination = path.join(courseDir, safePathPart(section.name), safePathPart(module.name), filename);
           await downloadContentFile(baseUrl, token, content.fileurl, destination);
           const relativePath = path.relative(root, destination);
