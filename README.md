@@ -94,6 +94,68 @@ Moodle uçları:
 
 Web servisi kapalıysa Ayarlar → Veri bölümünden dışa aktarılmış CSV dosyası veya Moodle tablosunu içeren HTML dosyası içe aktarılabilir. Günlük kayıtlar mevcut günle birleştirilir; değerlendirme ve görevler başlık/tarih eşleşmesiyle güncellenir. Bu akış Playwright veya tarayıcı otomasyonu kullanmaz.
 
+## Syllabus çıkarma promptu
+
+İndirilen ders belgelerinden yeni eklenen bir ders için syllabus bilgilerini çıkarmak üzere Copilot, Codex veya Claude Code'a aşağıdaki prompt verilebilir:
+
+```text
+Bu repository'de AYBÜZEM'den indirilen ders içeriklerini inceleyip yeni eklenmiş ders için güvenilir bir syllabus özeti oluştur.
+
+Amaç:
+- İstenen ders klasörünü ve ilgili contents.json dosyasını bul.
+- PDF, DOCX, HTML, TXT, Markdown ve ZIP içindeki okunabilir belgeleri tara.
+- Syllabus, grading, assessment, course outline, weekly schedule ve exam bilgilerini önceliklendir.
+- İçerikleri uygulamanın mevcut veri modeline uygun şekilde hazırlayıp import edilebilir bir çıktı üret.
+
+Çalışma kuralları:
+1. Önce repository yapısını, db.js şemasını, integrations/aybuzem.js senkronunu ve mevcut assessment/topic kayıtlarını oku.
+2. Ders kodunu CENG303 gibi klasör adından, contents.json içindeki course alanından ve Moodle metadata'sından doğrula. Kod uyuşmuyorsa tahmin etme; belirsizliği raporla.
+3. Belgelerde yazmayan sınav tarihi, quiz sıklığı, ağırlık, hafta konusu veya not kuralını uydurma.
+4. Bir bilgi birden fazla belgede geçiyorsa syllabus/grading belgesini önceliklendir; çelişki varsa iki kaynağı ve seçtiğin sonucu açıkça belirt.
+5. PDF/DOCX okunamıyorsa dosyayı yok sayma. Dosya adı, boyutu, türü ve okunamama nedenini rapora ekle.
+6. URL modülü gerçek belge yerine HTML görüntüleyici döndürüyorsa bunu gerçek PDF/ZIP gibi yorumlama. HTML içindeki görünen hedef bağlantıyı ayrıca raporla.
+7. Aynı dersi veya aynı assessment/topic kaydını ikinci kez oluşturma. İşlem idempotent olmalı; mevcut kayıtları yalnızca kaynak daha güvenilir ve yeni bilgi sağlıyorsa güncelle.
+8. Kullanıcının manuel notlarını, puanlarını, kişisel GPA ayarlarını, günlük kayıtlarını ve mevcut ders hedeflerini silme veya sıfırlama.
+9. Değişiklik yapmadan önce planı ve etkilenecek kayıtları listele. Yazma işlemlerinden sonra değişen kayıtları ve atlanan belgeleri raporla.
+10. Uygulama Windows, macOS ve Linux'ta çalışmalıdır. Dosya yollarında path.join/path.resolve/os.homedir kullan; Linux'a özel '/', '~', chmod veya sabit kullanıcı dizini kullanma. AYBUZEM_CONTENT_DIR varsa onu kullan.
+
+Çıktıyı önce şu JSON yapısında üret:
+{
+  "course": { "code": "CENG303", "name": "...", "instructor": "...", "ects": null },
+  "topics": [
+    { "week": 1, "title": "...", "source": "dosya.pdf#sayfa 2", "confidence": "high" }
+  ],
+  "assessments": [
+    { "type": "vize|final|quiz|odev|proje|lab|pratik|sunum", "title": "...", "date": null, "weight": null, "source": "...", "confidence": "high" }
+  ],
+  "grading": { "scale": "...", "rules": ["..."], "source": "..." },
+  "unknowns": ["Belgesi bulunamayan veya çelişkili bilgiler"],
+  "files_scanned": [],
+  "files_skipped": []
+}
+
+JSON çıktısından sonra:
+- Bulduğun bilgileri mevcut db.js şeması ve API sözleşmesiyle karşılaştır.
+- Uygulamaya yazma yapacaksan hangi endpoint veya kontrollü migration'ı kullanacağını söyle.
+- assessment ağırlıklarının toplamını kontrol et; toplam %100 değilse bunu hata olarak işaretle, otomatik düzeltme yapma.
+- Tarih yoksa date alanını null bırak. Tahmini tarihi gerçek tarih gibi kaydetme.
+- Son olarak kısa bir değişiklik özeti, güven seviyesi ve insan onayı gerektiren maddeler listesi ver.
+```
+
+Bu prompt, syllabus bilgisini doğrudan körlemesine veritabanına yazmak yerine kaynak, güven seviyesi ve belirsizlikleri korur. İnsan onayı gerektiren tarih/ağırlık kararları ayrıca gösterilir.
+
+## Platform desteği
+
+Uygulama macOS, Windows ve Linux için aynı davranışı hedefler:
+
+- Node.js **24+** ve `node:sqlite` gerekir.
+- Dosya yolları `os.homedir()` ve `path` API'leriyle oluşturulur.
+- İçerik klasörü işletim sistemine göre `Masaüstü` veya `Desktop` altında bulunur.
+- Sabit kullanıcı dizini veya Linux'a özel dosya yolu kullanılmaz.
+- Özel içerik konumu için `AYBUZEM_CONTENT_DIR` ortam değişkeni kullanılabilir.
+- Windows'ta `npm start`, macOS/Linux'ta `npm start` ile aynı şekilde çalışır.
+- Şifre dosyaya yazılmaz; token ve yerel veritabanı kullanıcı bilgisayarında kalır.
+
 ## API
 
 | Metot | Yol | Açıklama |
