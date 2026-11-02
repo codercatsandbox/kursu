@@ -1,4 +1,6 @@
 import { chmod, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HttpError, db, todayISO } from '../db.js';
@@ -8,9 +10,11 @@ const CONFIG_PATH = process.env.AYBUZEM_CONFIG_PATH
   ? path.resolve(process.env.AYBUZEM_CONFIG_PATH)
   : path.join(__dirname, '..', 'data', 'aybuzem.json');
 const DEFAULT_BASE = 'https://aybuzem.aybu.edu.tr';
+const SYNC_INTERVAL_MS = 30 * 60 * 1000;
 
 // Şifre diske yazılmaz; yalnızca bu süreçte token almak için tutulur.
 let sessionPassword = '';
+let scheduledSyncRunning = false;
 
 async function readConfig() {
   try {
@@ -34,6 +38,90 @@ async function writeConfig(config) {
 
 function normalizeBase(value) {
   return String(value || DEFAULT_BASE).trim().replace(/\/+$/, '');
+}
+
+function contentRoot() {
+  if (process.env.AYBUZEM_CONTENT_DIR) return path.resolve(process.env.AYBUZEM_CONTENT_DIR);
+  const home = homedir();
+  const desktop = ['Masaüstü', 'Desktop'].map((name) => path.join(home, name)).find(existsSync)
+    ?? path.join(home, 'Masaüstü');
+  return path.join(desktop, 'CENG 3rd Fall');
+}
+
+function safePathPart(value, fallback = 'genel') {
+  const cleaned = String(value || fallback).replace(/[<>:"/\\|?*\x00-\x1F]/g, '_').trim();
+  if (!cleaned || cleaned === '.' || cleaned === '..') return fallback;
+  return cleaned.slice(0, 120);
+}
+
+function contentWithoutUrl(content) {
+  const { fileurl, ...safeContent } = content;
+  return safeContent;
+}
+
+function syncSectionTopic(localCourse, section, index) {
+  if (!localCourse || !section.name || /^general$/i.test(section.name.trim())) return false;
+  const title = section.name.trim();
+  const exists = db.prepare('SELECT id FROM topics WHERE course_id = ? AND lower(title) = lower(?)').get(localCourse.id, title);
+  if (exists) return false;
+  const week = Number.isInteger(Number(section.section)) ? Number(section.section) : index;
+  const order = (db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS n FROM topics WHERE course_id = ?').get(localCourse.id).n || 0) + 10;
+  db.prepare(`
+    INSERT INTO topics (course_id, week, title, status, resource, note, sort_order)
+    VALUES (?, ?, ?, 'planlandi', 'AYBÜZEM', 'AYBÜZEM içerik senkronundan eklendi.', ?)
+  `).run(localCourse.id, Math.max(0, week), title, order);
+  return true;
+}
+
+async function downloadContentFile(baseUrl, token, fileurl, destination) {
+  const url = new URL(fileurl, `${baseUrl}/`);
+  url.searchParams.set('token', token);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Dosya indirilemedi (${response.status}): ${url.pathname}`);
+  await mkdir(path.dirname(destination), { recursive: true });
+  await writeFile(destination, Buffer.from(await response.arrayBuffer()));
+}
+
+async function syncCourseContents(baseUrl, token, sourceId, remoteCourseId, localCourse) {
+  const sections = await callWs(baseUrl, token, 'core_course_get_contents', { courseid: remoteCourseId });
+  const root = contentRoot();
+  const courseName = safePathPart(localCourse?.code || `course-${remoteCourseId}`);
+  const courseDir = path.join(root, courseName);
+  const manifest = { course: localCourse?.code || null, remoteCourseId, syncedAt: new Date().toISOString(), sections: [] };
+  let files = 0;
+  let topics = 0;
+
+  for (const [index, section] of (Array.isArray(sections) ? sections : []).entries()) {
+    if (syncSectionTopic(localCourse, section, index + 1)) topics += 1;
+    const sectionRecord = { id: section.id, name: section.name || '', summary: section.summary || '', modules: [] };
+    for (const module of section.modules || []) {
+      const moduleRecord = { id: module.id, name: module.name || '', modname: module.modname || '', contents: [] };
+      for (const content of module.contents || []) {
+        const safeContent = contentWithoutUrl(content);
+        if (content.fileurl) {
+          const filename = safePathPart(content.filename || `file-${content.type || 'content'}`);
+          const destination = path.join(courseDir, safePathPart(section.name), safePathPart(module.name), filename);
+          await downloadContentFile(baseUrl, token, content.fileurl, destination);
+          const relativePath = path.relative(root, destination);
+          safeContent.localPath = relativePath;
+          files += 1;
+          upsertSyncItem(sourceId, `file:${remoteCourseId}:${module.id}:${content.filename}:${content.fileurl}`, 'content_file', localCourse?.id ?? null, {
+            ...safeContent,
+            localPath: relativePath,
+          });
+        }
+        moduleRecord.contents.push(safeContent);
+      }
+      upsertSyncItem(sourceId, `content:${remoteCourseId}:${module.id}`, 'content_module', localCourse?.id ?? null, moduleRecord);
+      sectionRecord.modules.push(moduleRecord);
+    }
+    upsertSyncItem(sourceId, `content-section:${remoteCourseId}:${section.id}`, 'content_section', localCourse?.id ?? null, sectionRecord);
+    manifest.sections.push(sectionRecord);
+  }
+
+  await mkdir(courseDir, { recursive: true });
+  await writeFile(path.join(courseDir, 'contents.json'), JSON.stringify(manifest, null, 2));
+  return { sections: manifest.sections.length, files, topics };
 }
 
 function sourceRow() {
@@ -214,6 +302,7 @@ export async function syncAybuzem() {
     const site = await callWs(baseUrl, token, 'core_webservice_get_site_info');
     const courses = await callWs(baseUrl, token, 'core_enrol_get_users_courses', { userid: site.userid });
     const localCourses = new Map();
+    const contentSummary = { courses: 0, sections: 0, files: 0, topics: 0, errors: [] };
     for (const course of Array.isArray(courses) ? courses : []) {
       const local = matchLocalCourse(course);
       if (local) {
@@ -221,6 +310,15 @@ export async function syncAybuzem() {
         db.prepare('UPDATE courses SET external_id = ? WHERE id = ?').run(String(course.id), local.id);
       }
       upsertSyncItem(source.id, `course:${course.id}`, 'course', local?.id ?? null, course);
+      try {
+        const result = await syncCourseContents(baseUrl, token, source.id, course.id, local);
+        contentSummary.courses += 1;
+        contentSummary.sections += result.sections;
+        contentSummary.files += result.files;
+        contentSummary.topics += result.topics;
+      } catch (err) {
+        contentSummary.errors.push(`${course.shortname || course.fullname || course.id}: ${err.message}`);
+      }
     }
 
     const courseIds = [...localCourses.keys()];
@@ -263,7 +361,7 @@ export async function syncAybuzem() {
     db.prepare(`
       UPDATE sync_sources SET last_sync_at = datetime('now'), status = 'ok', message = ?
        WHERE id = ?
-    `).run(`${courses?.length ?? 0} ders, ${assignments.length} ödev, ${events?.events?.length ?? 0} etkinlik`, source.id);
+    `).run(`${courses?.length ?? 0} ders, ${assignments.length} ödev, ${events?.events?.length ?? 0} etkinlik, ${contentSummary.files} içerik dosyası`, source.id);
 
     return {
       ok: true,
@@ -271,6 +369,7 @@ export async function syncAybuzem() {
       matchedCourses: localCourses.size,
       assignments: assignments.length,
       events: events?.events?.length ?? 0,
+      content: contentSummary,
       syncedAt: new Date().toISOString(),
     };
   } catch (err) {
@@ -289,6 +388,28 @@ export async function syncAybuzem() {
     }
     throw err;
   }
+}
+
+export function startAybuzemScheduler() {
+  const run = async () => {
+    if (scheduledSyncRunning) return;
+    const status = await getAybuzemStatus();
+    if (!status.configured) return;
+    scheduledSyncRunning = true;
+    try {
+      const result = await syncAybuzem();
+      console.log(`  AYBÜZEM otomatik senkron: ${result.courses} ders, ${result.content.files} içerik dosyası`);
+    } catch (err) {
+      console.error(`  AYBÜZEM otomatik senkron başarısız: ${err.message}`);
+    } finally {
+      scheduledSyncRunning = false;
+    }
+  };
+
+  void run();
+  const timer = setInterval(run, SYNC_INTERVAL_MS);
+  timer.unref();
+  return () => clearInterval(timer);
 }
 
 export function aybuzemToday() {

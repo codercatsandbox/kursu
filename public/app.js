@@ -1773,7 +1773,7 @@ async function runAybuzemSync() {
     const result = await api('/api/aybuzem/sync', { method: 'POST' });
     await loadAybuzemStatus();
     await refreshAll();
-    toast(`AYBÜZEM: ${result.courses} ders, ${result.assignments} ödev, ${result.events} etkinlik.`);
+    toast(`AYBÜZEM: ${result.courses} ders, ${result.assignments} ödev, ${result.events} etkinlik, ${result.content?.files || 0} içerik dosyası, ${result.content?.topics || 0} konu.`);
   } catch (err) {
     toast(err.message, true);
   } finally {
