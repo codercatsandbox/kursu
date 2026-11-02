@@ -1,4 +1,4 @@
-import { chmod, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { chmod, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -99,6 +99,25 @@ async function downloadContentFile(baseUrl, token, fileurl, destination) {
   await writeFile(destination, Buffer.from(await response.arrayBuffer()));
 }
 
+async function removePreviousContentFiles(root, courseDir) {
+  try {
+    const manifest = JSON.parse(await readFile(path.join(courseDir, 'contents.json'), 'utf8'));
+    const rootPath = path.resolve(root);
+    for (const section of manifest.sections || []) {
+      for (const module of section.modules || []) {
+        for (const content of module.contents || []) {
+          if (!content.localPath) continue;
+          const filePath = path.resolve(root, content.localPath);
+          if (filePath === rootPath || !filePath.startsWith(`${rootPath}${path.sep}`)) continue;
+          await rm(filePath, { force: true });
+        }
+      }
+    }
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err;
+  }
+}
+
 async function syncCourseContents(baseUrl, token, sourceId, remoteCourseId, localCourse) {
   const sections = await callWs(baseUrl, token, 'core_course_get_contents', { courseid: remoteCourseId });
   const root = contentRoot();
@@ -107,6 +126,7 @@ async function syncCourseContents(baseUrl, token, sourceId, remoteCourseId, loca
   const manifest = { course: localCourse?.code || null, remoteCourseId, syncedAt: new Date().toISOString(), sections: [] };
   let files = 0;
   let topics = 0;
+  await removePreviousContentFiles(root, courseDir);
 
   for (const [index, section] of (Array.isArray(sections) ? sections : []).entries()) {
     if (syncSectionTopic(localCourse, section, index + 1)) topics += 1;
