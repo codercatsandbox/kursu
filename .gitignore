@@ -5,3 +5,4 @@ data/*.db-wal
 data/aybuzem.json
 .env
 .DS_Store
+!data/kursu.db

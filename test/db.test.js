@@ -14,6 +14,7 @@ const {
   getGno,
   getStats,
   getSummary,
+  createAssessment,
   importCsv,
   listTasks,
   saveDay,
@@ -37,38 +38,27 @@ test('seed 2026-2027 Güz derslerini ve 45 AKTS toplamını oluşturur', () => {
   assert.equal(boot.term.end_date, '2027-01-15');
   assert.equal(boot.courses.length, 9);
   assert.equal(boot.courses.reduce((sum, c) => sum + c.ects, 0), 45);
-  assert.equal(boot.assessments.length, 27);
-  assert.equal(boot.trainings.length, 3);
+  assert.equal(boot.assessments.length, 28);
+  assert.equal(boot.trainings.length, 0);
   const midterms = boot.assessments
     .filter((assessment) => assessment.type === 'vize')
     .map((assessment) => assessment.date);
   assert.ok(midterms.every((date) => date >= '2026-11-14'));
 });
 
-test('GNO varsayımları ve MATH101 DD → AA senaryosu hesaplanır', () => {
+test('GNO başlangıç bilgileri boş ve ders projeksiyonu kullanılabilir', () => {
   const gno = getGno();
-  assert.equal(gno.settings.previous_gno, 3.12);
-  assert.equal(gno.settings.previous_ects, 129);
+  assert.equal(gno.settings.previous_gno, 0);
+  assert.equal(gno.settings.previous_ects, 0);
   assert.equal(gno.term.ects, 41);
-  assert.equal(gno.cumulative.ects, 164);
-  assert.equal(gno.cumulative.gno, 3.35);
   assert.equal(gno.repeat_scenario.code, 'MATH101');
   assert.equal(gno.repeat_scenario.ects, 6);
-  assert.equal(gno.repeat_scenario.delta_points, 18);
-  assert.ok(gno.repeat_scenario.aa_gno > gno.repeat_scenario.dd_gno);
-  assert.equal(gno.target.remaining_ects, 76);
-  assert.equal(gno.target.required_average, 3.85);
-  assert.equal(gno.target.remaining_ects_from_now, 117);
-  assert.equal(gno.target.required_average_from_now, 3.81);
-  assert.equal(gno.target.extra_ects_at_maximum, 0);
 });
 
 test('günlük kayıt ders ve eğitim loglarını birlikte saklar', () => {
   const boot = getBootstrap();
   const course = boot.courses.find((c) => c.code === 'CENG301');
   const topic = boot.topics.find((t) => t.course_id === course.id);
-  const training = boot.trainings.find((t) => t.name.includes('FPGA'));
-  const milestone = boot.milestones.find((m) => m.training_id === training.id);
 
   const saved = saveDay('2026-10-28', {
     mood: 4,
@@ -76,17 +66,16 @@ test('günlük kayıt ders ve eğitim loglarını birlikte saklar', () => {
     note: 'Test günü.',
     logs: [
       { course_id: course.id, topic_id: topic.id, minutes: 90, activity: 'ders' },
-      { training_id: training.id, milestone_id: milestone.id, minutes: 45, activity: 'egitim' },
     ],
   });
 
   assert.equal(saved.exists, true);
   assert.equal(saved.mood, 4);
   assert.equal(saved.note, 'Test günü.');
-  assert.equal(saved.logs.length, 2);
-  assert.equal(saved.logs.reduce((sum, l) => sum + l.minutes, 0), 135);
-  assert.equal(getDay('2026-10-28').logs.length, 2);
-  assert.ok(getStats(30).range.minutes >= 135);
+  assert.equal(saved.logs.length, 1);
+  assert.equal(saved.logs.reduce((sum, l) => sum + l.minutes, 0), 90);
+  assert.equal(getDay('2026-10-28').logs.length, 1);
+  assert.ok(getStats(30).range.minutes >= 90);
   assert.equal(getSummary('2026-10-28').day.note, 'Test günü.');
 });
 
@@ -103,6 +92,54 @@ test('değerlendirme puanı ders projeksiyonunu ve GNO kaynağını günceller',
   const row = getGno().rows.find((r) => r.code === 'CENG301');
   assert.equal(row.source, 'projeksiyon');
   assert.equal(row.grade, 'AA');
+});
+
+test('CENG327 quizleri Salı günüyle ve beş kayıtla sınırlıdır', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((course) => course.code === 'CENG327');
+
+  assert.throws(
+    () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Cuma Quiz', date: '2026-12-04' }),
+    /Salı günü/,
+  );
+
+  for (let index = 0; index < 4; index += 1) {
+    createAssessment({
+      course_id: course.id,
+      type: 'quiz',
+      title: `Salı Quiz ${index + 2}`,
+      date: `2027-01-${String(index * 7 + 5).padStart(2, '0')}`,
+    });
+  }
+  assert.throws(
+    () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Altıncı Quiz', date: '2027-02-02' }),
+    /en fazla 5 quiz/,
+  );
+});
+
+test('CENG305 quizleri iki haftada bir Pazartesiye denk gelir', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((course) => course.code === 'CENG305');
+
+  createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 09.11', date: '2026-11-09' });
+  createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 23.11', date: '2026-11-23' });
+  assert.throws(
+    () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 16.11', date: '2026-11-16' }),
+    /iki haftada bir Pazartesi/,
+  );
+});
+
+test('CENG441 quizleri üç haftada bir Cuma gününe denk gelir', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((course) => course.code === 'CENG441');
+  const firstQuiz = boot.assessments.find((assessment) => assessment.course_id === course.id && assessment.type === 'quiz');
+
+  assert.equal(firstQuiz.date, '2026-10-23');
+  createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 13.11', date: '2026-11-13' });
+  assert.throws(
+    () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 06.11', date: '2026-11-06' }),
+    /üç haftada bir Cuma/,
+  );
 });
 
 test('CSV dışa aktarma başlıkları ve kayıtları üretir', () => {
@@ -122,17 +159,14 @@ test('CSV ve HTML tablo içe aktarma veriyi birleştirir', () => {
   const boot = getBootstrap();
   const course = boot.courses.find((c) => c.code === 'CENG301');
   const topic = boot.topics.find((t) => t.course_id === course.id);
-  const training = boot.trainings.find((t) => t.name.includes('FPGA'));
-  const milestone = boot.milestones.find((m) => m.training_id === training.id);
 
   const logs = importCsv('logs', [
     'tarih;tur;kod;ad;konu;aktivite;dakika;not;ruh_hali;enerji;gun_notu',
     `2026-10-29;ders;CENG301;;${topic.title};ders;30;import;4;3;import günü`,
-    `2026-10-29;egitim;;${training.name};${milestone.title};egitim;20;;;;`,
   ].join('\n'));
-  assert.equal(logs.imported, 2);
+  assert.equal(logs.imported, 1);
   assert.equal(logs.days, 1);
-  assert.equal(getDay('2026-10-29').logs.length, 2);
+  assert.equal(getDay('2026-10-29').logs.length, 1);
 
   const assessments = importCsv('assessments', [
     'ders;kod;tur;baslik;tarih;agirlik;puan;maks;durum;not',

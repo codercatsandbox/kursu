@@ -19,12 +19,12 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY CHECK (id = 1),
-    student_name TEXT NOT NULL DEFAULT 'Ali Haydar Sucu',
-    daily_minutes INTEGER NOT NULL DEFAULT 180,
-    weekly_minutes INTEGER NOT NULL DEFAULT 1080,
-    gno_target REAL NOT NULL DEFAULT 3.51,
-    previous_gno REAL NOT NULL DEFAULT 3.12,
-    previous_ects INTEGER NOT NULL DEFAULT 129,
+    student_name TEXT NOT NULL DEFAULT '',
+    daily_minutes INTEGER NOT NULL DEFAULT 0,
+    weekly_minutes INTEGER NOT NULL DEFAULT 0,
+    gno_target REAL NOT NULL DEFAULT 0,
+    previous_gno REAL NOT NULL DEFAULT 0,
+    previous_ects INTEGER NOT NULL DEFAULT 0,
     target_ects INTEGER NOT NULL DEFAULT 240,
     grade_scale_json TEXT NOT NULL DEFAULT ''
   );
@@ -517,66 +517,9 @@ const ASSESSMENTS = {
   ],
 };
 
-const TRAININGS = [
-  {
-    name: 'Anadolu Logic FPGA Akademisi',
-    provider: 'Anadolu Logic',
-    category: 'egitim',
-    start: '2026-09-01',
-    end: '2027-06-30',
-    status: 'devam',
-    total_hours: 40,
-    note: 'FPGA akışı ve Verilog pratiği; EE424 ile paralel yürüyor.',
-  },
-  {
-    name: 'T3 Gemstone Anadolu',
-    provider: 'T3 Vakfı',
-    category: 'program',
-    start: '2026-09-01',
-    end: '2027-06-30',
-    status: 'devam',
-    total_hours: 0,
-    note: 'Mehmet Akif Erdem’in grubu; edge AI ve gömülü çalışmalar.',
-  },
-  {
-    name: 'TÜBİTAK 2026-2 Aday Araştırmacı Başvurusu',
-    provider: 'TÜBİTAK',
-    category: 'basvuru',
-    start: '2026-10-01',
-    end: '2026-11-04',
-    status: 'devam',
-    total_hours: 0,
-    note: 'Son tarih 04.11.2026 17:00. Hedef ilanlar: SAGE.13 ve BİLGEM.02.',
-  },
-];
-
-const MILESTONES = {
-  'Anadolu Logic FPGA Akademisi': [
-    ['Temel mantık ve kombinasyonel devreler', '2026-09-30', 8, 'bitti'],
-    ['Sıralı devreler ve FSM', '2026-10-31', 8, 'devam'],
-    ['FPGA akışı: sentez, yerleştirme, bitstream', '2026-12-15', 10, 'bekliyor'],
-    ['ILA / VIO ile kart üzerinde doğrulama', '2027-02-28', 8, 'bekliyor'],
-    ['Kapanış projesi', '2027-06-15', 6, 'bekliyor'],
-  ],
-  'T3 Gemstone Anadolu': [
-    ['GPIO pin haritası ve donanım doğrulama', '2026-10-15', 0, 'bitti'],
-    ['Edge AI LLM benchmark test matrisi', '2026-12-20', 0, 'devam'],
-    ['Teknik rapor ve GitHub çıktısı', '2027-01-31', 0, 'bekliyor'],
-  ],
-  'TÜBİTAK 2026-2 Aday Araştırmacı Başvurusu': [
-    ['SAGE.13 ilanına göre özgeçmiş', '2026-10-30', 0, 'devam'],
-    ['Niyet mektubu / araştırma planı', '2026-11-01', 0, 'bekliyor'],
-    ['Referans ve ek belgeler', '2026-11-02', 0, 'bekliyor'],
-    ['Başvuru formu', '2026-11-03', 0, 'bekliyor'],
-    ['Son kontrol ve gönderim', '2026-11-04T17:00', 0, 'bekliyor'],
-  ],
-};
-
-const TASKS = [
-  ['TÜBİTAK başvurusunu tamamla', 'basvuru', '2026-11-04T17:00', 'yuksek', 'acik', 'TÜBİTAK 2026-2 Aday Araştırmacı Başvurusu'],
-  ['MATH101 tekrar planını netleştir', 'idari', '2026-11-01', 'normal', 'acik', null],
-  ['EE424 proje kapsamı ve kabul kriterleri', 'proje', '2026-10-09', 'normal', 'bitti', null],
-];
+const TRAININGS = [];
+const MILESTONES = {};
+const TASKS = [];
 
 function seed() {
   const termCount = db.prepare('SELECT COUNT(*) AS n FROM terms').get().n;
@@ -649,6 +592,14 @@ function seed() {
        AND title IN ('Midterm', 'Midterm Exam', 'Midterm-I')
   `).run();
 
+  const imageProcessing = db.prepare("SELECT id FROM courses WHERE code = 'CENG441'").get();
+  if (imageProcessing && !db.prepare("SELECT id FROM assessments WHERE course_id = ? AND type = 'quiz' AND date = '2026-10-23'").get(imageProcessing.id)) {
+    db.prepare(`
+      INSERT INTO assessments (course_id, type, title, date, weight, status, sort_order)
+      VALUES (?, 'quiz', 'Quiz', '2026-10-23', 0, 'planlandi', 0)
+    `).run(imageProcessing.id);
+  }
+
   if (db.prepare('SELECT COUNT(*) AS n FROM trainings').get().n === 0) {
     const insertTraining = db.prepare(`
       INSERT INTO trainings (name, provider, category, start_date, end_date, status, total_hours, note, sort_order)
@@ -701,12 +652,12 @@ export function getSettings() {
 export function updateSettings(patch) {
   const current = getSettings();
   const next = {
-    student_name: text(patch.student_name ?? current.student_name, 60) || 'Ali Haydar Sucu',
+    student_name: text(patch.student_name ?? current.student_name, 60),
     daily_minutes: int(patch.daily_minutes ?? current.daily_minutes, 180, 0, 1440),
     weekly_minutes: int(patch.weekly_minutes ?? current.weekly_minutes, 1080, 0, 10080),
-    gno_target: num(patch.gno_target ?? current.gno_target, 3.51, 0, 4),
-    previous_gno: num(patch.previous_gno ?? current.previous_gno, 3.12, 0, 4),
-    previous_ects: int(patch.previous_ects ?? current.previous_ects, 129, 0, 400),
+    gno_target: num(patch.gno_target ?? current.gno_target, 0, 0, 4),
+    previous_gno: num(patch.previous_gno ?? current.previous_gno, 0, 0, 4),
+    previous_ects: int(patch.previous_ects ?? current.previous_ects, 0, 0, 400),
     target_ects: int(patch.target_ects ?? current.target_ects, 240, 1, 400),
   };
   db.prepare(`
@@ -937,6 +888,39 @@ export function deleteTopic(id) {
 
 /* ---------------------------------------------------------- assessments */
 
+function validateAssessmentSchedule(courseId, type, date, currentId = null) {
+  const course = db.prepare('SELECT code FROM courses WHERE id = ?').get(Number(courseId));
+  if (!course || type !== 'quiz') return;
+  if (course.code === 'CENG327') {
+    if (date && new Date(`${date}T00:00:00Z`).getUTCDay() !== 2) {
+      throw new HttpError(400, 'CENG327 quizleri Salı günü olmalıdır.');
+    }
+  }
+  if (course.code === 'CENG305') {
+    if (!date) return;
+    const quizDate = new Date(`${date}T00:00:00Z`);
+    const anchorDate = new Date('2026-11-09T00:00:00Z');
+    const daysFromAnchor = Math.round((quizDate - anchorDate) / 86400000);
+    if (quizDate.getUTCDay() !== 1 || daysFromAnchor % 14 !== 0) {
+      throw new HttpError(400, 'CENG305 quizleri 09.11.2026 başlangıcıyla iki haftada bir Pazartesi olmalıdır.');
+    }
+  }
+  if (course.code === 'CENG441') {
+    if (!date) return;
+    const quizDate = new Date(`${date}T00:00:00Z`);
+    const anchorDate = new Date('2026-10-23T00:00:00Z');
+    const daysFromAnchor = Math.round((quizDate - anchorDate) / 86400000);
+    if (quizDate.getUTCDay() !== 5 || daysFromAnchor % 21 !== 0) {
+      throw new HttpError(400, 'CENG441 quizleri 23.10.2026 başlangıcıyla üç haftada bir Cuma olmalıdır.');
+    }
+  }
+  const count = db.prepare(`
+    SELECT COUNT(*) AS n FROM assessments
+     WHERE course_id = ? AND type = 'quiz' AND id != COALESCE(?, -1)
+  `).get(Number(courseId), currentId).n;
+  if (count >= 5) throw new HttpError(400, 'CENG327 için en fazla 5 quiz eklenebilir.');
+}
+
 export function listAssessments(courseId = null) {
   const rows = courseId
     ? db.prepare(`
@@ -963,6 +947,7 @@ export function createAssessment(payload) {
   const title = text(payload.title, 120);
   if (!title) throw new HttpError(400, 'Değerlendirme adı boş olamaz.');
   if (payload.date && !isValidDate(payload.date)) throw new HttpError(400, 'Geçersiz tarih.');
+  validateAssessmentSchedule(courseId, text(payload.type, 30) || 'vize', payload.date || null);
   const order = (db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS n FROM assessments WHERE course_id = ?').get(courseId).n || 0) + 10;
   const info = db.prepare(`
     INSERT INTO assessments (course_id, type, title, date, weight, score, max_score, status, note, sort_order)
@@ -981,6 +966,12 @@ export function updateAssessment(id, payload) {
   const row = db.prepare('SELECT * FROM assessments WHERE id = ?').get(Number(id));
   if (!row) throw new HttpError(404, 'Değerlendirme bulunamadı.');
   if (payload.date && !isValidDate(payload.date)) throw new HttpError(400, 'Geçersiz tarih.');
+  validateAssessmentSchedule(
+    row.course_id,
+    text(payload.type ?? row.type, 30) || row.type,
+    payload.date === undefined ? row.date : (payload.date || null),
+    row.id,
+  );
   db.prepare(`
     UPDATE assessments SET type = ?, title = ?, date = ?, weight = ?, score = ?,
                            max_score = ?, status = ?, note = ?

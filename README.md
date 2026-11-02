@@ -1,14 +1,18 @@
 # Kürsü
 
-Ali Haydar Sucu için lokal ders, eğitim ve GNO takip paneli. Rota'dan ayrı bir uygulamadır; YKS tarafına dokunmaz.
+<p align="center">
+	<img src="public/logo.svg" alt="Kürsü logosu" width="96">
+</p>
+
+Ders, eğitim ve GNO takip paneli. Kendi derslerini ve hedeflerini ekleyerek kullanabilirsin.
 
 ## Ne yapar?
 
 - **Bugün:** ders ve eğitim bazında dakika, konu/milestone ve aktivite kaydı; ruh hali, enerji ve gün notu.
 - **Dersler:** 2026-2027 Güz dersleri, haftalık konular, değerlendirme ağırlıkları, hedef/final notu ve projeksiyon.
-- **Takvim:** sınavlar, ödev/teslimler, TÜBİTAK gibi başvurular ve eğitim milestone'ları tek listede.
-- **Eğitimler:** FPGA Akademisi, Gemstone Anadolu ve TÜBİTAK başvurusu gibi dış programlar; milestone ilerlemesi.
-- **Notlar:** AYBÜ harf notu ölçeği, AKTS ağırlıklı dönem/kümülatif GNO, 3.51 hedefi için gereken ortalama.
+- **Takvim:** sınavlar ve ödev/teslimler tek listede.
+- **Eğitimler:** dış eğitimleri ve milestone'ları kendin ekleyebilirsin.
+- **Notlar:** AYBÜ harf notu ölçeği ve AKTS ağırlıklı dönem/kümülatif GNO.
 - **Özet:** günlük/haftalık özet, 30/90 günlük grafik, ders dağılımı ve 24 haftalık ısı haritası. Rapor dosyası üretmez.
 - **Ayarlar:** hedefler, GNO varsayımları, CSV dışa/içe aktarma ve AYBÜZEM (Moodle) bağlantısı.
 
@@ -20,7 +24,7 @@ Ali Haydar Sucu için lokal ders, eğitim ve GNO takip paneli. Rota'dan ayrı bi
 ## Çalıştırma
 
 ```bash
-cd "/home/ali/Masaüstü/Ek Projeler/kursu"
+cd kursu
 npm start
 ```
 
@@ -59,15 +63,7 @@ Dersler: CENG300, CENG301, CENG303, CENG305, CENG327, CENG441, EE424, ENGR251, M
 
 Toplam 45 AKTS. CENG300 staj/geçti-kaldı olduğu için GNO'ya girmez. MATH101 tekrar dersidir; final notu girildiğinde son deneme esas alınır.
 
-GNO varsayılanları:
-
-- Önceki GNO: 3.12
-- Önceki AKTS: 129
-- Mezuniyet AKTS: 240 (minimum; ek dersler ve not yükseltmeleri ayrıca planlanabilir)
-- Hedef GNO: 3.51
-- Ölçek: AA 4.00, BA 3.50, BB 3.00, CB 2.50, CC 2.00, DC 1.50, DD 1.00, FD 0.50, FF 0.00
-
-Bu varsayımlar Ayarlar sekmesinden değiştirilebilir. Tekrar derslerinde eski notun AKTS/puan katkısı çıkarılır ve son deneme esas alınır. Hedef 4.00 üstü bir ortalama gerektiriyorsa panel, minimum 240 AKTS üzerine 4.00'lük ek ders ihtiyacını ayrıca gösterir. Notlar sekmesinde MATH101 için **DD → AA** senaryosu ayrıca gösterilir.
+GPA alanları public başlangıç verisinde boş/0 değerlerle gelir; kullanıcı bunları Ayarlar sekmesinden kendisi doldurabilir. Harf notu ölçeği AA 4.00 ile FF 0.00 arasındadır.
 
 Syllabus verisi:
 
@@ -92,6 +88,16 @@ Moodle uçları:
 - `POST /webservice/rest/server.php`
 
 Web servisi kapalıysa Ayarlar → Veri bölümünden dışa aktarılmış CSV dosyası veya Moodle tablosunu içeren HTML dosyası içe aktarılabilir. Günlük kayıtlar mevcut günle birleştirilir; değerlendirme ve görevler başlık/tarih eşleşmesiyle güncellenir. Bu akış Playwright veya tarayıcı otomasyonu kullanmaz.
+
+## Ekran Görüntüleri
+
+<p align="center">
+	<img src="docs/dashboard.png" alt="Kürsü günlük kayıt ekranı" width="720">
+</p>
+
+<p align="center">
+	<img src="docs/courses.png" alt="Kürsü dersler ekranı" width="720">
+</p>
 
 ## API
 
