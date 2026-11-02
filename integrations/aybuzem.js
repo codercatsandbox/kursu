@@ -182,11 +182,10 @@ function upsertSyncItem(sourceId, externalId, kind, courseId, payload) {
 }
 
 function matchLocalCourse(course) {
-  const code = String(course.shortname || course.fullname || '').trim().toUpperCase();
+  const source = `${course.shortname || ''} ${course.fullname || ''}`.toUpperCase();
+  const code = source.match(/\b[A-Z]{2,5}\d{3}\b/)?.[0];
   if (!code) return null;
-  return db.prepare('SELECT * FROM courses WHERE upper(code) = ?').get(code)
-    ?? db.prepare('SELECT * FROM courses WHERE upper(code) = ?').get(code.split(/\s+/)[0])
-    ?? null;
+  return db.prepare('SELECT * FROM courses WHERE upper(code) = ?').get(code) ?? null;
 }
 
 export async function syncAybuzem() {
@@ -255,7 +254,7 @@ export async function syncAybuzem() {
     const events = await callWs(baseUrl, token, 'core_calendar_get_action_events_by_timesort', {
       timesortfrom: now - 7 * 86400,
       timesortto: now + 90 * 86400,
-      limitnum: 100,
+      limitnum: 50,
     });
     for (const event of events.events || []) {
       upsertSyncItem(source.id, `event:${event.id}`, 'event', null, event);

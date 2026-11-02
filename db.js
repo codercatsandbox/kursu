@@ -473,13 +473,13 @@ const TOPICS = {
 
 const ASSESSMENTS = {
   CENG301: [
-    ['vize', 'Midterm', '2026-11-12', 40],
+    ['vize', 'Midterm', '2026-11-14', 40],
     ['final', 'Final', '2027-01-14', 60],
   ],
   CENG303: [
     ['odev', 'Homework 1', '2026-10-18', 5],
     ['pratik', 'Midterm Practice Exam', '2026-11-04', 15],
-    ['vize', 'Midterm Exam', '2026-11-11', 30],
+    ['vize', 'Midterm Exam', '2026-11-14', 30],
     ['odev', 'Homework 2', '2026-12-06', 5],
     ['pratik', 'Final Practice Exam', '2027-01-06', 15],
     ['final', 'Final Exam', '2027-01-13', 30],
@@ -487,7 +487,7 @@ const ASSESSMENTS = {
   CENG305: [
     ['quiz', 'Quiz ortalaması (6 + 1 bonus)', '2026-12-21', 25],
     ['odev', 'Homework ortalaması (3)', '2026-12-14', 15],
-    ['vize', 'Midterm-I', '2026-11-02', 30],
+    ['vize', 'Midterm-I', '2026-11-14', 30],
     ['final', 'Final', '2027-01-11', 35],
   ],
   CENG327: [
@@ -640,6 +640,14 @@ function seed() {
       });
     }
   }
+
+  db.prepare(`
+    UPDATE assessments
+       SET date = '2026-11-14'
+     WHERE type = 'vize'
+       AND date IN ('2026-11-02', '2026-11-11', '2026-11-12')
+       AND title IN ('Midterm', 'Midterm Exam', 'Midterm-I')
+  `).run();
 
   if (db.prepare('SELECT COUNT(*) AS n FROM trainings').get().n === 0) {
     const insertTraining = db.prepare(`

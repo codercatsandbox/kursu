@@ -39,6 +39,10 @@ test('seed 2026-2027 Güz derslerini ve 45 AKTS toplamını oluşturur', () => {
   assert.equal(boot.courses.reduce((sum, c) => sum + c.ects, 0), 45);
   assert.equal(boot.assessments.length, 27);
   assert.equal(boot.trainings.length, 3);
+  const midterms = boot.assessments
+    .filter((assessment) => assessment.type === 'vize')
+    .map((assessment) => assessment.date);
+  assert.ok(midterms.every((date) => date >= '2026-11-14'));
 });
 
 test('GNO varsayımları ve MATH101 DD → AA senaryosu hesaplanır', () => {
