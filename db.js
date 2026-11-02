@@ -649,6 +649,14 @@ function seed() {
        AND title IN ('Midterm', 'Midterm Exam', 'Midterm-I')
   `).run();
 
+  const imageProcessing = db.prepare("SELECT id FROM courses WHERE code = 'CENG441'").get();
+  if (imageProcessing && !db.prepare("SELECT id FROM assessments WHERE course_id = ? AND type = 'quiz' AND date = '2026-10-23'").get(imageProcessing.id)) {
+    db.prepare(`
+      INSERT INTO assessments (course_id, type, title, date, weight, status, sort_order)
+      VALUES (?, 'quiz', 'Quiz', '2026-10-23', 0, 'planlandi', 0)
+    `).run(imageProcessing.id);
+  }
+
   if (db.prepare('SELECT COUNT(*) AS n FROM trainings').get().n === 0) {
     const insertTraining = db.prepare(`
       INSERT INTO trainings (name, provider, category, start_date, end_date, status, total_hours, note, sort_order)
@@ -937,6 +945,39 @@ export function deleteTopic(id) {
 
 /* ---------------------------------------------------------- assessments */
 
+function validateAssessmentSchedule(courseId, type, date, currentId = null) {
+  const course = db.prepare('SELECT code FROM courses WHERE id = ?').get(Number(courseId));
+  if (!course || type !== 'quiz') return;
+  if (course.code === 'CENG327') {
+    if (date && new Date(`${date}T00:00:00Z`).getUTCDay() !== 2) {
+      throw new HttpError(400, 'CENG327 quizleri Salı günü olmalıdır.');
+    }
+  }
+  if (course.code === 'CENG305') {
+    if (!date) return;
+    const quizDate = new Date(`${date}T00:00:00Z`);
+    const anchorDate = new Date('2026-11-09T00:00:00Z');
+    const daysFromAnchor = Math.round((quizDate - anchorDate) / 86400000);
+    if (quizDate.getUTCDay() !== 1 || daysFromAnchor % 14 !== 0) {
+      throw new HttpError(400, 'CENG305 quizleri 09.11.2026 başlangıcıyla iki haftada bir Pazartesi olmalıdır.');
+    }
+  }
+  if (course.code === 'CENG441') {
+    if (!date) return;
+    const quizDate = new Date(`${date}T00:00:00Z`);
+    const anchorDate = new Date('2026-10-23T00:00:00Z');
+    const daysFromAnchor = Math.round((quizDate - anchorDate) / 86400000);
+    if (quizDate.getUTCDay() !== 5 || daysFromAnchor % 21 !== 0) {
+      throw new HttpError(400, 'CENG441 quizleri 23.10.2026 başlangıcıyla üç haftada bir Cuma olmalıdır.');
+    }
+  }
+  const count = db.prepare(`
+    SELECT COUNT(*) AS n FROM assessments
+     WHERE course_id = ? AND type = 'quiz' AND id != COALESCE(?, -1)
+  `).get(Number(courseId), currentId).n;
+  if (count >= 5) throw new HttpError(400, 'CENG327 için en fazla 5 quiz eklenebilir.');
+}
+
 export function listAssessments(courseId = null) {
   const rows = courseId
     ? db.prepare(`
@@ -963,6 +1004,7 @@ export function createAssessment(payload) {
   const title = text(payload.title, 120);
   if (!title) throw new HttpError(400, 'Değerlendirme adı boş olamaz.');
   if (payload.date && !isValidDate(payload.date)) throw new HttpError(400, 'Geçersiz tarih.');
+  validateAssessmentSchedule(courseId, text(payload.type, 30) || 'vize', payload.date || null);
   const order = (db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS n FROM assessments WHERE course_id = ?').get(courseId).n || 0) + 10;
   const info = db.prepare(`
     INSERT INTO assessments (course_id, type, title, date, weight, score, max_score, status, note, sort_order)
@@ -981,6 +1023,12 @@ export function updateAssessment(id, payload) {
   const row = db.prepare('SELECT * FROM assessments WHERE id = ?').get(Number(id));
   if (!row) throw new HttpError(404, 'Değerlendirme bulunamadı.');
   if (payload.date && !isValidDate(payload.date)) throw new HttpError(400, 'Geçersiz tarih.');
+  validateAssessmentSchedule(
+    row.course_id,
+    text(payload.type ?? row.type, 30) || row.type,
+    payload.date === undefined ? row.date : (payload.date || null),
+    row.id,
+  );
   db.prepare(`
     UPDATE assessments SET type = ?, title = ?, date = ?, weight = ?, score = ?,
                            max_score = ?, status = ?, note = ?

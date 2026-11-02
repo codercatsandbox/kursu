@@ -85,6 +85,7 @@ Faz 4 entegrasyonu `integrations/aybuzem.js` içinde hazır:
 3. “Şimdi senkronize et” dersleri, ödevleri ve takvim etkinliklerini salt okunur çeker.
 4. AYBÜZEM'den gelen ödevler `source = 'aybuzem'` etiketiyle görevlere eklenir; manuel görevler ezilmez.
 5. Moodle mobil web servisi kapalıysa bağlantı hata verir; CSV/HTML içe aktarma ve manuel giriş çalışmaya devam eder.
+6. Sunucu açıldığında yapılandırılmış AYBÜZEM hesabıyla otomatik senkron başlar ve 30 dakikada bir tekrarlanır. Ders içerikleri `~/Masaüstü/CENG 3rd Fall` (veya `~/Desktop/CENG 3rd Fall`) altında ders klasörlerine indirilir; Moodle bölümleri eksik konu olarak uygulamaya eklenir.
 
 Moodle uçları:
 

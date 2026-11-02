@@ -43,7 +43,7 @@ import {
   updateTopic,
   updateTraining,
 } from './db.js';
-import { getAybuzemStatus, saveAybuzemConfig, syncAybuzem } from './integrations/aybuzem.js';
+import { getAybuzemStatus, saveAybuzemConfig, startAybuzemScheduler, syncAybuzem } from './integrations/aybuzem.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -345,6 +345,8 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+const stopAybuzemScheduler = startAybuzemScheduler();
+
 server.on('error', (err) => {
   if (err.code === 'EADDRINUSE') {
     console.error(`\n  Port ${PORT} zaten kullanımda. Başka bir port için: PORT=5175 npm start\n`);
@@ -363,6 +365,7 @@ server.listen(PORT, HOST, () => {
 });
 
 function shutdown() {
+  stopAybuzemScheduler();
   server.close(() => {
     try {
       db.close();

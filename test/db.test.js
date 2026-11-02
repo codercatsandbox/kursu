@@ -14,6 +14,7 @@ const {
   getGno,
   getStats,
   getSummary,
+  createAssessment,
   importCsv,
   listTasks,
   saveDay,
@@ -37,7 +38,7 @@ test('seed 2026-2027 Güz derslerini ve 45 AKTS toplamını oluşturur', () => {
   assert.equal(boot.term.end_date, '2027-01-15');
   assert.equal(boot.courses.length, 9);
   assert.equal(boot.courses.reduce((sum, c) => sum + c.ects, 0), 45);
-  assert.equal(boot.assessments.length, 27);
+  assert.equal(boot.assessments.length, 28);
   assert.equal(boot.trainings.length, 3);
   const midterms = boot.assessments
     .filter((assessment) => assessment.type === 'vize')
@@ -103,6 +104,54 @@ test('değerlendirme puanı ders projeksiyonunu ve GNO kaynağını günceller',
   const row = getGno().rows.find((r) => r.code === 'CENG301');
   assert.equal(row.source, 'projeksiyon');
   assert.equal(row.grade, 'AA');
+});
+
+test('CENG327 quizleri Salı günüyle ve beş kayıtla sınırlıdır', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((course) => course.code === 'CENG327');
+
+  assert.throws(
+    () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Cuma Quiz', date: '2026-12-04' }),
+    /Salı günü/,
+  );
+
+  for (let index = 0; index < 4; index += 1) {
+    createAssessment({
+      course_id: course.id,
+      type: 'quiz',
+      title: `Salı Quiz ${index + 2}`,
+      date: `2027-01-${String(index * 7 + 5).padStart(2, '0')}`,
+    });
+  }
+  assert.throws(
+    () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Altıncı Quiz', date: '2027-02-02' }),
+    /en fazla 5 quiz/,
+  );
+});
+
+test('CENG305 quizleri iki haftada bir Pazartesiye denk gelir', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((course) => course.code === 'CENG305');
+
+  createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 09.11', date: '2026-11-09' });
+  createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 23.11', date: '2026-11-23' });
+  assert.throws(
+    () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 16.11', date: '2026-11-16' }),
+    /iki haftada bir Pazartesi/,
+  );
+});
+
+test('CENG441 quizleri üç haftada bir Cuma gününe denk gelir', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((course) => course.code === 'CENG441');
+  const firstQuiz = boot.assessments.find((assessment) => assessment.course_id === course.id && assessment.type === 'quiz');
+
+  assert.equal(firstQuiz.date, '2026-10-23');
+  createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 13.11', date: '2026-11-13' });
+  assert.throws(
+    () => createAssessment({ course_id: course.id, type: 'quiz', title: 'Quiz 06.11', date: '2026-11-06' }),
+    /üç haftada bir Cuma/,
+  );
 });
 
 test('CSV dışa aktarma başlıkları ve kayıtları üretir', () => {
