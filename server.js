@@ -337,9 +337,7 @@ async function handleApi(req, res, url) {
 
   /* --------------------------------------------------------------- study */
   if (pathname === '/api/study/resume' && method === 'GET') {
-    const course = params.get('course') || params.get('course_id');
-    if (!course) throw new HttpError(400, 'course parametresi gerekli.');
-    return sendJson(res, 200, getStudyResume(course));
+    return sendJson(res, 200, getStudyResume(params.get('course') || params.get('course_id')));
   }
 
   if (pathname === '/api/study/today' && method === 'GET') {

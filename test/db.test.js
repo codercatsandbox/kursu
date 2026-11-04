@@ -282,5 +282,6 @@ test('materyal backfill, çalışma oturumu ve kaldığım yeri üretir', () => 
   assert.equal(resume.material.page, 12);
   assert.match(resume.sentence, /12\. sayfasındaydın/);
   assert.match(resume.sentence, /23 dakika/);
+  assert.equal(getStudyResume().course.code, 'CENG301');
   assert.throws(() => getStudyResume('YOK999'), /Ders bulunamadı/);
 });

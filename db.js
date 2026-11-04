@@ -1245,7 +1245,35 @@ function resolveCourse(ref) {
     ?? null;
 }
 
+function latestStudyCourse() {
+  return db.prepare(`
+    SELECT c.* FROM study_sessions s
+      JOIN courses c ON c.id = s.course_id
+     ORDER BY COALESCE(s.ended_at, s.started_at) DESC, s.id DESC
+     LIMIT 1
+  `).get()
+    ?? db.prepare(`
+      SELECT c.* FROM logs l
+        JOIN courses c ON c.id = l.course_id
+       WHERE l.course_id IS NOT NULL
+       ORDER BY l.date DESC, l.id DESC
+       LIMIT 1
+    `).get()
+    ?? db.prepare(`
+      SELECT c.* FROM courses c
+       WHERE EXISTS (SELECT 1 FROM materials m WHERE m.course_id = c.id)
+       ORDER BY c.id LIMIT 1
+    `).get()
+    ?? db.prepare('SELECT * FROM courses ORDER BY id LIMIT 1').get()
+    ?? null;
+}
+
 function resolveCourseOrThrow(ref) {
+  if (ref === null || ref === undefined || String(ref).trim() === '') {
+    const latest = latestStudyCourse();
+    if (latest) return latest;
+    throw new HttpError(404, 'Ders bulunamadı.');
+  }
   const course = resolveCourse(ref);
   if (!course) throw new HttpError(404, 'Ders bulunamadı.');
   return course;

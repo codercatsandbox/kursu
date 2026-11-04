@@ -106,6 +106,8 @@ AYBÜZEM senkronunun indirdiği dosyalar `materials` tablosuna yansıtılır. De
 
 `GET /api/study/resume?course=CENG301` şu sırayı izler:
 
+0. `course` verilmezse son çalışma oturumu, son günlük kayıt veya materyali
+   olan ilk ders seçilir.
 1. Son çalışma oturumu (`study_sessions`).
 2. Son günlük kayıt (`logs`).
 3. Durumu `devam` olan ilk konu.
@@ -193,7 +195,7 @@ Uygulama macOS, Windows ve Linux için aynı davranışı hedefler:
 | GET | `/api/materials/:id` | Materyal detayı |
 | GET | `/api/materials/:id/file` | Materyal dosyası (Range destekli) |
 | PUT | `/api/materials/:id/progress` | Materyal sayfası/ilerlemesi kaydet |
-| GET | `/api/study/resume?course=` | “Kaldığım yer” özeti (ders, konu, materyal, sayfa) |
+| GET | `/api/study/resume?course=` | “Kaldığım yer” özeti; `course` yoksa son çalışılan ders |
 | GET | `/api/study/today?date=` | Günlük çalışma oturumları ve dakikalar |
 | POST | `/api/study/sessions` | Çalışma oturumu başlat |
 | GET/PATCH | `/api/study/sessions/:id` | Oturum oku / güncelle |
