@@ -1343,6 +1343,79 @@ a {
   background: rgba(242, 125, 125, 0.08);
 }
 
+.material-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.material-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.016);
+  border: 1px solid rgba(42, 52, 70, 0.45);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.material-row:hover {
+  border-color: rgba(240, 180, 90, 0.35);
+  background: rgba(240, 180, 90, 0.045);
+}
+
+.material-kind {
+  display: inline-grid;
+  place-items: center;
+  min-height: 22px;
+  padding: 2px 5px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.material-main {
+  min-width: 0;
+}
+
+.material-main b {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.material-main small {
+  display: block;
+  margin-top: 1px;
+  color: var(--muted-2);
+  font-size: 0.66rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.material-page {
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.material-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 .assessment-row {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) 90px 100px 74px 92px 28px;

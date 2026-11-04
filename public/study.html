@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kürsü · Materyal</title>
+  <meta name="theme-color" content="#0e1118">
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/study.css">
+</head>
+<body class="study-body">
+  <header class="study-header">
+    <a class="study-brand" href="/">
+      <img src="/logo.svg" alt="" width="38" height="38">
+      <span><strong>Kürsü</strong><small>çalışma görünümü</small></span>
+    </a>
+    <div class="study-heading">
+      <p id="studyEyebrow" class="study-eyebrow">Materyal</p>
+      <h1 id="studyTitle">Yükleniyor…</h1>
+    </div>
+    <a class="study-back" href="/">Panale dön</a>
+  </header>
+
+  <main class="study-main">
+    <aside class="study-side">
+      <section class="study-card">
+        <span class="study-label">Ders</span>
+        <strong id="studyCourse">—</strong>
+        <span class="study-label">Konu</span>
+        <strong id="studyTopic">—</strong>
+        <span class="study-label">Materyal</span>
+        <strong id="studyMaterial">—</strong>
+      </section>
+
+      <section class="study-card" id="studyControls">
+        <label class="study-label" for="pageInput">Sayfa</label>
+        <div class="study-page-row">
+          <input id="pageInput" type="number" min="1" step="1" value="1" inputmode="numeric">
+          <button id="goPage" class="ghost-btn" type="button">Git</button>
+        </div>
+        <p id="pageMeta" class="study-hint"></p>
+        <button id="savePlace" class="primary-btn" type="button">Burada kaldım</button>
+        <button id="finishTopic" class="ghost-btn" type="button">Konuyu bitir</button>
+        <button id="endSession" class="ghost-btn" type="button">Oturumu bitir</button>
+      </section>
+
+      <div id="studyStatus" class="study-status" role="status" aria-live="polite"></div>
+    </aside>
+
+    <section class="study-viewer">
+      <iframe id="materialFrame" title="Materyal görüntüleyici" src="about:blank"></iframe>
+      <div id="studyError" class="study-error" hidden></div>
+    </section>
+  </main>
+
+  <script type="module" src="/study.js"></script>
+</body>
+</html>

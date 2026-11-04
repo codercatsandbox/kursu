@@ -1,5 +1,6 @@
 import http from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -10,6 +11,7 @@ import {
   addTopic,
   addTraining,
   createAssessment,
+  createStudySession,
   createTask,
   db,
   deleteAssessment,
@@ -23,27 +25,35 @@ import {
   getCourse,
   getDay,
   getGno,
+  getMaterial,
   getStats,
+  getStudyResume,
+  getStudySession,
+  getStudyToday,
   getSummary,
   getTraining,
   importCsv,
   listAssessments,
   listCourses,
   listLogs,
+  listMaterials,
   listTasks,
   listTopics,
   listTrainings,
+  nowLocalISO,
   saveDay,
+  saveMaterialProgress,
   todayISO,
   updateAssessment,
   updateCourse,
   updateMilestone,
   updateSettings,
+  updateStudySession,
   updateTask,
   updateTopic,
   updateTraining,
 } from './db.js';
-import { getAybuzemStatus, saveAybuzemConfig, startAybuzemScheduler, syncAybuzem } from './integrations/aybuzem.js';
+import { contentRoot, getAybuzemStatus, saveAybuzemConfig, startAybuzemScheduler, syncAybuzem } from './integrations/aybuzem.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -57,9 +67,22 @@ const MIME = {
   '.js': 'text/javascript; charset=utf-8',
   '.svg': 'image/svg+xml',
   '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.gif': 'image/gif',
+  '.webp': 'image/webp',
   '.ico': 'image/x-icon',
   '.json': 'application/json; charset=utf-8',
   '.woff2': 'font/woff2',
+  '.pdf': 'application/pdf',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/plain; charset=utf-8',
+  '.csv': 'text/csv; charset=utf-8',
+  '.sql': 'text/plain; charset=utf-8',
+  '.zip': 'application/zip',
+  '.mp4': 'video/mp4',
 };
 
 function sendJson(res, status, data) {
@@ -131,6 +154,76 @@ function matchId(pathname, pattern) {
   return m ? Number(m[1]) : null;
 }
 
+async function serveMaterialFile(req, res, id) {
+  const material = getMaterial(id);
+  if (!material.local_path) throw new HttpError(404, 'Materyal dosyası yok.');
+
+  const root = path.resolve(contentRoot());
+  const filePath = path.resolve(root, material.local_path);
+  if (!filePath.startsWith(`${root}${path.sep}`)) {
+    throw new HttpError(403, 'Materyal yolu içerik klasörünün dışında.');
+  }
+
+  let info;
+  try {
+    info = await stat(filePath);
+  } catch (err) {
+    if (err.code === 'ENOENT' || err.code === 'ENOTDIR') throw new HttpError(404, 'Materyal dosyası bulunamadı.');
+    throw err;
+  }
+  if (!info.isFile()) throw new HttpError(404, 'Materyal dosyası değil.');
+
+  const ext = path.extname(filePath).toLowerCase();
+  const headers = {
+    'Content-Type': MIME[ext] ?? 'application/octet-stream',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+    'Accept-Ranges': 'bytes',
+    'Content-Disposition': `inline; filename*=UTF-8''${encodeURIComponent(path.basename(filePath))}`,
+  };
+  // İndirilen HTML materyalleri Kürsü API'sine erişemesin.
+  if (ext === '.html' || ext === '.htm') {
+    headers['Content-Security-Policy'] = "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'";
+  }
+
+  const range = req.headers.range;
+  if (typeof range === 'string' && range.startsWith('bytes=')) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+    if (!m) {
+      res.writeHead(416, { 'Content-Range': `bytes */${info.size}` });
+      return res.end();
+    }
+    let start = m[1] === '' ? null : Number(m[1]);
+    let end = m[2] === '' ? null : Number(m[2]);
+    if (start === null && end !== null) {
+      start = Math.max(0, info.size - end);
+      end = info.size - 1;
+    } else {
+      start = start ?? 0;
+      end = end ?? info.size - 1;
+    }
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || start > end || start >= info.size) {
+      res.writeHead(416, { 'Content-Range': `bytes */${info.size}` });
+      return res.end();
+    }
+    end = Math.min(end, info.size - 1);
+    res.writeHead(206, {
+      ...headers,
+      'Content-Range': `bytes ${start}-${end}/${info.size}`,
+      'Content-Length': end - start + 1,
+    });
+    if (req.method === 'HEAD') return res.end();
+    return createReadStream(filePath, { start, end }).pipe(res);
+  }
+
+  res.writeHead(200, {
+    ...headers,
+    'Content-Length': info.size,
+  });
+  if (req.method === 'HEAD') return res.end();
+  return createReadStream(filePath).pipe(res);
+}
+
 async function handleApi(req, res, url) {
   const { pathname } = url;
   const method = req.method;
@@ -198,6 +291,33 @@ async function handleApi(req, res, url) {
     throw new HttpError(405, 'Desteklenmeyen metot.');
   }
 
+  const courseMaterials = matchId(pathname, /^\/api\/courses\/(\d+)\/materials$/);
+  if (courseMaterials !== null) {
+    if (method === 'GET') return sendJson(res, 200, listMaterials(courseMaterials));
+    throw new HttpError(405, 'Desteklenmeyen metot.');
+  }
+
+  /* ------------------------------------------------------------ materials */
+  const materialFile = matchId(pathname, /^\/api\/materials\/(\d+)\/file$/);
+  if (materialFile !== null) {
+    if (method === 'GET' || method === 'HEAD') return serveMaterialFile(req, res, materialFile);
+    throw new HttpError(405, 'Desteklenmeyen metot.');
+  }
+
+  const materialProgress = matchId(pathname, /^\/api\/materials\/(\d+)\/progress$/);
+  if (materialProgress !== null) {
+    if (method === 'PUT' || method === 'POST') {
+      return sendJson(res, 200, saveMaterialProgress(materialProgress, await readJson(req)));
+    }
+    throw new HttpError(405, 'Desteklenmeyen metot.');
+  }
+
+  const materialId = matchId(pathname, /^\/api\/materials\/(\d+)$/);
+  if (materialId !== null) {
+    if (method === 'GET') return sendJson(res, 200, getMaterial(materialId));
+    throw new HttpError(405, 'Desteklenmeyen metot.');
+  }
+
   /* -------------------------------------------------------------- topics */
   if (pathname === '/api/topics' && method === 'GET') {
     const course = Number(params.get('course_id'));
@@ -211,6 +331,42 @@ async function handleApi(req, res, url) {
       deleteTopic(topicId);
       res.writeHead(204);
       return res.end();
+    }
+    throw new HttpError(405, 'Desteklenmeyen metot.');
+  }
+
+  /* --------------------------------------------------------------- study */
+  if (pathname === '/api/study/resume' && method === 'GET') {
+    const course = params.get('course') || params.get('course_id');
+    if (!course) throw new HttpError(400, 'course parametresi gerekli.');
+    return sendJson(res, 200, getStudyResume(course));
+  }
+
+  if (pathname === '/api/study/today' && method === 'GET') {
+    return sendJson(res, 200, getStudyToday(params.get('date') || todayISO()));
+  }
+
+  if (pathname === '/api/study/sessions' && method === 'POST') {
+    return sendJson(res, 201, createStudySession(await readJson(req)));
+  }
+
+  const studySessionClose = matchId(pathname, /^\/api\/study\/sessions\/(\d+)\/close$/);
+  if (studySessionClose !== null) {
+    if (method === 'POST' || method === 'PATCH') {
+      const payload = await readJson(req);
+      return sendJson(res, 200, updateStudySession(studySessionClose, {
+        ...payload,
+        ended_at: payload.ended_at || nowLocalISO(),
+      }));
+    }
+    throw new HttpError(405, 'Desteklenmeyen metot.');
+  }
+
+  const studySessionId = matchId(pathname, /^\/api\/study\/sessions\/(\d+)$/);
+  if (studySessionId !== null) {
+    if (method === 'GET') return sendJson(res, 200, getStudySession(studySessionId));
+    if (method === 'PATCH' || method === 'PUT') {
+      return sendJson(res, 200, updateStudySession(studySessionId, await readJson(req)));
     }
     throw new HttpError(405, 'Desteklenmeyen metot.');
   }

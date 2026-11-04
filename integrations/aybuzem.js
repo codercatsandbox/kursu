@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HttpError, db, todayISO, upsertExternalCourse } from '../db.js';
+import { HttpError, backfillMaterials, db, todayISO, upsertExternalCourse } from '../db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = process.env.AYBUZEM_CONFIG_PATH
@@ -40,7 +40,7 @@ function normalizeBase(value) {
   return String(value || DEFAULT_BASE).trim().replace(/\/+$/, '');
 }
 
-function contentRoot() {
+export function contentRoot() {
   if (process.env.AYBUZEM_CONTENT_DIR) return path.resolve(process.env.AYBUZEM_CONTENT_DIR);
   const home = homedir();
   const desktop = ['Masaüstü', 'Desktop'].map((name) => path.join(home, name)).find(existsSync)
@@ -79,9 +79,14 @@ function contentWithoutUrl(content) {
 function syncSectionTopic(localCourse, section, index) {
   if (!localCourse || !section.name || /^general$/i.test(section.name.trim())) return false;
   const title = section.name.trim();
-  const exists = db.prepare('SELECT id FROM topics WHERE course_id = ? AND lower(title) = lower(?)').get(localCourse.id, title);
-  if (exists) return false;
   const week = Number.isInteger(Number(section.section)) ? Number(section.section) : index;
+  // Aynı başlık veya aynı haftada elle girilmiş bir konu varsa yinelenen
+  // "21 Eylül - 27 Eylül" konusu oluşturma.
+  const exists = db.prepare(`
+    SELECT id FROM topics
+     WHERE course_id = ? AND (lower(title) = lower(?) OR week = ?)
+  `).get(localCourse.id, title, Math.max(0, week));
+  if (exists) return false;
   const order = (db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS n FROM topics WHERE course_id = ?').get(localCourse.id).n || 0) + 10;
   db.prepare(`
     INSERT INTO topics (course_id, week, title, status, resource, note, sort_order)
@@ -145,6 +150,7 @@ async function syncCourseContents(baseUrl, token, sourceId, remoteCourseId, loca
           upsertSyncItem(sourceId, `file:${remoteCourseId}:${module.id}:${content.filename}:${content.fileurl}`, 'content_file', localCourse?.id ?? null, {
             ...safeContent,
             localPath: relativePath,
+            sectionIndex: index + 1,
           });
         }
         moduleRecord.contents.push(safeContent);
@@ -370,6 +376,8 @@ export async function syncAybuzem() {
         contentSummary.errors.push(`${course.shortname || course.fullname || course.id}: ${err.message}`);
       }
     }
+
+    backfillMaterials();
 
     const courseIds = [...localCourses.keys()];
     let assignments = [];

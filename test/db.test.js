@@ -8,17 +8,24 @@ for (const suffix of ['', '-wal', '-shm']) rmSync(`${testDb}${suffix}`, { force:
 
 const {
   db,
+  backfillMaterials,
+  createStudySession,
   getBootstrap,
   getCourse,
   getDay,
   getGno,
+  getMaterial,
   getStats,
+  getStudyResume,
   getSummary,
   createAssessment,
   importCsv,
+  listMaterials,
   listTasks,
   saveDay,
+  saveMaterialProgress,
   updateAssessment,
+  updateStudySession,
   upsertExternalCourse,
   exportCsv,
 } = await import('../db.js');
@@ -212,4 +219,68 @@ test('CSV ve HTML tablo içe aktarma veriyi birleştirir', () => {
   ].join('\n'));
   assert.equal(tasks.imported, 1);
   assert.equal(listTasks().filter((t) => t.title === 'CSV görevi').length, 1);
+});
+
+test('materyal backfill, çalışma oturumu ve kaldığım yeri üretir', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((c) => c.code === 'CENG301');
+  const topic = boot.topics.find((t) => t.course_id === course.id && t.week === 4);
+
+  // Bu test kendi temiz durumunu kurar; önceki CSV testleri log bırakmış olabilir.
+  db.prepare('DELETE FROM logs WHERE course_id = ?').run(course.id);
+  db.prepare('DELETE FROM study_sessions WHERE course_id = ?').run(course.id);
+  db.prepare('DELETE FROM material_progress WHERE material_id IN (SELECT id FROM materials WHERE course_id = ?)').run(course.id);
+  db.prepare('DELETE FROM materials WHERE course_id = ?').run(course.id);
+
+  const source = db.prepare("SELECT id FROM sync_sources WHERE name = 'AYBÜZEM'").get();
+  const externalId = `test:file:${course.id}:4`;
+  db.prepare(`
+    INSERT INTO sync_items (source_id, external_id, kind, course_id, payload_json)
+    VALUES (?, ?, 'content_file', ?, ?)
+    ON CONFLICT(source_id, external_id) DO UPDATE SET payload_json = excluded.payload_json
+  `).run(source.id, externalId, course.id, JSON.stringify({
+    filename: 'hafta4.pdf',
+    localPath: `CENG301/${topic.title}/Sunum/hafta4.pdf`,
+    mimetype: 'application/pdf',
+    sortorder: 4,
+  }));
+
+  assert.ok(backfillMaterials() >= 1);
+  const material = listMaterials(course.id).find((m) => m.title === 'hafta4.pdf');
+  assert.ok(material);
+  assert.equal(material.topic_id, topic.id);
+  assert.match(material.deep_link, /^\/study\.html\?/);
+
+  const fresh = getStudyResume('ceng 301');
+  assert.equal(fresh.state, 'fresh');
+  assert.equal(fresh.material.id, material.id);
+
+  const session = createStudySession({
+    course_id: course.id,
+    topic_id: topic.id,
+    material_id: material.id,
+    started_at: '2026-11-03T20:10:00',
+    start_page: 7,
+  });
+  assert.equal(session.minutes, 0);
+
+  const done = updateStudySession(session.id, {
+    ended_at: '2026-11-03T20:33:00',
+    end_page: 12,
+  });
+  assert.equal(done.minutes, 23);
+  assert.equal(done.end_page, 12);
+
+  const saved = saveMaterialProgress(material.id, { page: 12, page_count: 34 });
+  assert.equal(saved.page, 12);
+  assert.equal(saved.percent, 35.3);
+  assert.equal(getMaterial(material.id).page, 12);
+
+  const resume = getStudyResume('CENG301');
+  assert.equal(resume.state, 'session');
+  assert.equal(resume.topic.id, topic.id);
+  assert.equal(resume.material.page, 12);
+  assert.match(resume.sentence, /12\. sayfasındaydın/);
+  assert.match(resume.sentence, /23 dakika/);
+  assert.throws(() => getStudyResume('YOK999'), /Ders bulunamadı/);
 });
