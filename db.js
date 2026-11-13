@@ -522,13 +522,13 @@ const TOPICS = {
 
 const ASSESSMENTS = {
   CENG301: [
-    ['vize', 'Midterm', '2026-11-14', 40],
+    ['vize', 'Midterm', '2026-11-17T09:00', 40],
     ['final', 'Final', '2027-01-14', 60],
   ],
   CENG303: [
     ['odev', 'Homework 1', '2026-10-18', 5],
     ['pratik', 'Midterm Practice Exam', '2026-11-04', 15],
-    ['vize', 'Midterm Exam', '2026-11-14', 30],
+    ['vize', 'Midterm Exam', '2026-11-18T09:00', 30],
     ['odev', 'Homework 2', '2026-12-06', 5],
     ['pratik', 'Final Practice Exam', '2027-01-06', 15],
     ['final', 'Final Exam', '2027-01-13', 30],
@@ -536,32 +536,32 @@ const ASSESSMENTS = {
   CENG305: [
     ['quiz', 'Quiz ortalaması (6 + 1 bonus)', '2026-12-21', 25],
     ['odev', 'Homework ortalaması (3)', '2026-12-14', 15],
-    ['vize', 'Midterm-I', '2026-11-14', 30],
+    ['vize', 'Midterm-I', '2026-11-16T09:00', 30],
     ['final', 'Final', '2027-01-11', 35],
   ],
   CENG327: [
     ['odev', 'Homework', '2026-12-11', 5],
     ['quiz', 'Quiz', '2026-12-04', 10],
     ['proje', 'Grup Projesi', '2027-01-08', 15],
-    ['vize', 'Midterm', '2026-11-18', 35],
+    ['vize', 'Midterm', '2026-11-18T13:30', 35],
     ['final', 'Final', '2027-01-13', 35],
   ],
   EE424: [
     ['odev', 'Homework + Quizzes', '2026-12-18', 10],
     ['proje', 'Term Project', '2027-01-08', 30],
-    ['vize', 'Midterm', '2026-11-18', 30],
+    ['vize', 'Midterm', '2026-11-20T13:50', 30],
     ['final', 'Final', '2027-01-15', 30],
   ],
   MATH101: [
-    ['vize', 'Midterm', '2026-11-14', 40],
+    ['vize', 'Midterm', '2026-11-19T11:00', 40],
     ['final', 'Final', '2027-01-09', 60],
   ],
   CENG441: [
-    ['vize', 'Midterm (syllabus bekleniyor)', '2026-11-20', 40],
+    ['vize', 'Midterm (syllabus bekleniyor)', '2026-11-16T13:30', 40],
     ['final', 'Final (syllabus bekleniyor)', '2027-01-12', 60],
   ],
   ENGR251: [
-    ['vize', 'Midterm (syllabus bekleniyor)', '2026-11-20', 40],
+    ['vize', 'Midterm (syllabus bekleniyor)', '2026-11-19T13:30', 40],
     ['final', 'Final (syllabus bekleniyor)', '2027-01-12', 60],
   ],
 };
@@ -697,6 +697,24 @@ function seed() {
        AND date IN ('2026-11-02', '2026-11-11', '2026-11-12')
        AND title IN ('Midterm', 'Midterm Exam', 'Midterm-I')
   `).run();
+
+  const examDates = {
+    CENG301: '2026-11-17T09:00',
+    CENG303: '2026-11-18T09:00',
+    CENG305: '2026-11-16T09:00',
+    CENG327: '2026-11-18T13:30',
+    EE424: '2026-11-20T13:50',
+    MATH101: '2026-11-19T11:00',
+    CENG441: '2026-11-16T13:30',
+    ENGR251: '2026-11-19T13:30',
+  };
+  const updateExamDate = db.prepare(`
+    UPDATE assessments
+       SET date = ?
+     WHERE course_id = (SELECT id FROM courses WHERE code = ?)
+       AND type = 'vize'
+  `);
+  for (const [code, date] of Object.entries(examDates)) updateExamDate.run(date, code);
 
   const imageProcessing = db.prepare("SELECT id FROM courses WHERE code = 'CENG441'").get();
   if (imageProcessing && !db.prepare("SELECT id FROM assessments WHERE course_id = ? AND type = 'quiz' AND date = '2026-10-23'").get(imageProcessing.id)) {

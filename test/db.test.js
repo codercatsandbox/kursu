@@ -52,6 +52,20 @@ test('seed 2026-2027 Güz derslerini ve 45 AKTS toplamını oluşturur', () => {
     .filter((assessment) => assessment.type === 'vize')
     .map((assessment) => assessment.date);
   assert.ok(midterms.every((date) => date >= '2026-11-14'));
+
+  const examDates = Object.fromEntries(boot.assessments
+    .filter((assessment) => assessment.type === 'vize')
+    .map((assessment) => [boot.courses.find((course) => course.id === assessment.course_id).code, assessment.date]));
+  assert.deepEqual(examDates, {
+    CENG301: '2026-11-17T09:00',
+    CENG303: '2026-11-18T09:00',
+    CENG305: '2026-11-16T09:00',
+    CENG327: '2026-11-18T13:30',
+    EE424: '2026-11-20T13:50',
+    MATH101: '2026-11-19T11:00',
+    CENG441: '2026-11-16T13:30',
+    ENGR251: '2026-11-19T13:30',
+  });
 });
 
 test('GNO varsayımları ve MATH101 DD → AA senaryosu hesaplanır', () => {
