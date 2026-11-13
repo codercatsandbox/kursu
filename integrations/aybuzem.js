@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HttpError, backfillMaterials, db, todayISO, upsertExternalCourse } from '../db.js';
+import { notifyDeadlines, notifyNewMaterials } from './bildirim.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = process.env.AYBUZEM_CONFIG_PATH
@@ -420,6 +421,17 @@ export async function syncAybuzem() {
       UPDATE sync_sources SET last_sync_at = datetime('now'), status = 'ok', message = ?
        WHERE id = ?
     `).run(`${courses?.length ?? 0} ders, ${assignments.length} ödev, ${events?.events?.length ?? 0} etkinlik, ${contentSummary.files} içerik dosyası`, source.id);
+
+    try {
+      await notifyNewMaterials();
+    } catch (err) {
+      console.error(`  Kürsü yeni materyal bildirimi gönderilemedi: ${err.message}`);
+    }
+    try {
+      await notifyDeadlines();
+    } catch (err) {
+      console.error(`  Kürsü tarih bildirimi gönderilemedi: ${err.message}`);
+    }
 
     return {
       ok: true,
