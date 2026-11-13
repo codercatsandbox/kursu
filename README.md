@@ -20,7 +20,7 @@ Ali Haydar Sucu için lokal ders, eğitim ve GNO takip paneli. Rota'dan ayrı bi
 ## Çalıştırma
 
 ```bash
-cd "/home/ali/Masaüstü/Ek Projeler/kursu"
+cd "/home/ali/Projeler/kursu"
 npm start
 ```
 
@@ -45,6 +45,15 @@ npm test
 ```
 
 Testler geçici bir SQLite dosyası kullanır; `data/kursu.db` dosyasına dokunmaz.
+
+## Bildirimler
+
+Yeni AYBÜZEM materyalleri ve yaklaşan sınav/teslim tarihleri masaüstü bildirimi olarak gösterilir. Kontrol, her 30 dakikalık AYBÜZEM senkronundan sonra çalışır; 08:30'daki systemd timer'ı senkron çalışmadığında emniyet ağı olarak aynı kontrolü yapar. Linux'ta `notify-send` (libnotify) gerekir.
+
+```bash
+node scripts/bildirim.js --materials --dry-run
+node scripts/bildirim.js --deadlines --dry-run
+```
 
 ## Veri
 
