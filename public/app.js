@@ -222,21 +222,9 @@ async function init() {
     await refreshAll();
     await loadAybuzemStatus();
     switchTab('bugun');
-    await handleDeepLink();
   } catch (err) {
     toast(err.message, true);
   }
-}
-
-async function handleDeepLink() {
-  const match = location.hash.match(/^#\/?course\/([A-Za-z0-9-]+)/);
-  if (!match) return;
-  const wanted = decodeURIComponent(match[1]).toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const course = state.courses.find((c) => c.code.toUpperCase().replace(/[^A-Z0-9]/g, '') === wanted)
-    ?? state.courses.find((c) => c.code.toUpperCase().replace(/[^A-Z0-9]/g, '').startsWith(wanted));
-  if (!course) return;
-  switchTab('dersler');
-  await openCourseDialog(course.id);
 }
 
 async function refreshAll() {
@@ -805,25 +793,6 @@ async function openCourseDialog(id) {
       </div>
 
       <div class="dialog-section">
-        <div class="dialog-section-head"><h3>Materyaller</h3><span class="hint">${course.materials?.length || 0} dosya</span></div>
-        <div class="material-list">
-          ${(course.materials || []).length ? course.materials.map((m) => `
-            <a class="material-row" href="${esc(m.deep_link)}" target="_blank" rel="noopener">
-              <span class="material-kind">${esc(m.kind)}</span>
-              <span class="material-main">
-                <b title="${esc(m.title)}">${esc(m.title)}</b>
-                <small>${m.topic_week ? `${m.topic_week}. hafta · ` : ''}${esc(m.section || m.module || '')}</small>
-              </span>
-              <span class="material-page">${m.page > 1 ? `${m.page}${m.page_count ? `/${m.page_count}` : ''}. sayfa` : ''}</span>
-            </a>
-          `).join('') : '<div class="empty-state">Materyal yok. AYBÜZEM senkronu dosya indirdiğinde burada görünür.</div>'}
-        </div>
-        <div class="material-actions">
-          <button type="button" class="ghost-btn" data-resume-course="${esc(course.code)}">Kaldığım yerden devam</button>
-        </div>
-      </div>
-
-      <div class="dialog-section">
         <div class="dialog-section-head"><h3>Ders bilgisi</h3><span class="hint">final notu GNO’ya işler</span></div>
         <form id="courseEditForm" class="dialog-form form-grid three">
           <label class="field"><span>Hedef not</span>
@@ -908,20 +877,6 @@ async function openCourseDialog(id) {
 
     const dialog = $('#courseDialog');
     if (!dialog.open) dialog.showModal();
-  } catch (err) {
-    toast(err.message, true);
-  }
-}
-
-async function resumeCourse(code) {
-  try {
-    const resume = await api(`/api/study/resume?course=${encodeURIComponent(code)}`);
-    if (resume.material?.deep_link) {
-      window.open(resume.material.deep_link, '_blank', 'noopener');
-      toast(resume.sentence || 'Materyal açıldı.');
-    } else {
-      toast(resume.sentence || 'Açılacak materyal bulunamadı.', true);
-    }
   } catch (err) {
     toast(err.message, true);
   }
@@ -1014,11 +969,8 @@ async function handleCourseDialogClick(event) {
   const courseBtn = event.target.closest('[data-del-course]');
   const topicBtn = event.target.closest('[data-del-topic]');
   const assessmentBtn = event.target.closest('[data-del-assessment]');
-  const resumeBtn = event.target.closest('[data-resume-course]');
   try {
-    if (resumeBtn) {
-      await resumeCourse(resumeBtn.dataset.resumeCourse);
-    } else if (courseBtn) {
+    if (courseBtn) {
       if (!window.confirm('Bu ders ve bağlı konu/değerlendirmeler silinsin mi? Günlük kaydı varsa silinemez.')) return;
       await api(`/api/courses/${courseBtn.dataset.delCourse}`, { method: 'DELETE' });
       $('#courseDialog').close();

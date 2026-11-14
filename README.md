@@ -20,7 +20,7 @@ Ali Haydar Sucu için lokal ders, eğitim ve GNO takip paneli. Rota'dan ayrı bi
 ## Çalıştırma
 
 ```bash
-cd "/home/ali/Projeler/kursu"
+cd "/home/ali/Masaüstü/Ek Projeler/kursu"
 npm start
 ```
 
@@ -45,15 +45,6 @@ npm test
 ```
 
 Testler geçici bir SQLite dosyası kullanır; `data/kursu.db` dosyasına dokunmaz.
-
-## Bildirimler
-
-Yeni AYBÜZEM materyalleri ve yaklaşan sınav/teslim tarihleri masaüstü bildirimi olarak gösterilir. Kontrol, her 30 dakikalık AYBÜZEM senkronundan sonra çalışır; 08:30'daki systemd timer'ı senkron çalışmadığında emniyet ağı olarak aynı kontrolü yapar. Linux'ta `notify-send` (libnotify) gerekir.
-
-```bash
-node scripts/bildirim.js --materials --dry-run
-node scripts/bildirim.js --deadlines --dry-run
-```
 
 ## Veri
 
@@ -100,30 +91,6 @@ Moodle uçları:
 
 - `POST /login/token.php` (`service=moodle_mobile_app`)
 - `POST /webservice/rest/server.php`
-
-## Materyaller ve “kaldığım yer”
-
-AYBÜZEM senkronunun indirdiği dosyalar `materials` tablosuna yansıtılır. Ders detayında **Materyaller** bölümü, her dosya için bir çalışma görünümü bağlantısı ve **Kaldığım yerden devam** düğmesi gösterir.
-
-Çalışma görünümü (`/study.html?material=...&page=...`):
-
-- PDF/PPTX/DOCX dosyalarını tarayıcıda açar; `#page=N` ile istenen sayfaya gider.
-- Açılışta bir `study_sessions` kaydı oluşturur.
-- **Burada kaldım** sayfayı `material_progress` ve oturumun `end_page` alanına yazar.
-- **Konuyu bitir** ilgili konuyu `bitti` yapar.
-- Sayfa takibi, tarayıcı PDF görüntüleyicisinin sayfa değişimini okuyamadığı için ilk sürümde kullanıcı tarafından girilir. PDF.js tabanlı otomatik takip sonraki fazdır.
-
-`GET /api/study/resume?course=CENG301` şu sırayı izler:
-
-0. `course` verilmezse son çalışma oturumu, son günlük kayıt veya materyali
-   olan ilk ders seçilir.
-1. Son çalışma oturumu (`study_sessions`).
-2. Son günlük kayıt (`logs`).
-3. Durumu `devam` olan ilk konu.
-4. Son `bitti` konudan sonraki konu.
-5. İlk konu.
-
-Kayıt yoksa `state: "fresh"` döner ve asistan uydurmaz; “henüz çalışma kaydı yok” der. Materyal eşleşmesi AYBÜZEM bölüm adı ile konu başlığı üzerinden yapılır; eşleşme yoksa dersin ilk PDF’i seçilir.
 
 Web servisi kapalıysa Ayarlar → Veri bölümünden dışa aktarılmış CSV dosyası veya Moodle tablosunu içeren HTML dosyası içe aktarılabilir. Günlük kayıtlar mevcut günle birleştirilir; değerlendirme ve görevler başlık/tarih eşleşmesiyle güncellenir. Bu akış Playwright veya tarayıcı otomasyonu kullanmaz.
 
@@ -200,15 +167,6 @@ Uygulama macOS, Windows ve Linux için aynı davranışı hedefler:
 | GET | `/api/courses` · `/api/courses/:id` | Ders listesi / detay |
 | POST/PUT/DELETE | `/api/courses` · `/api/courses/:id` | Ders CRUD |
 | GET/POST | `/api/courses/:id/topics` | Konu listesi / ekle |
-| GET | `/api/courses/:id/materials` | Dersin indirilmiş materyalleri ve sayfa ilerlemesi |
-| GET | `/api/materials/:id` | Materyal detayı |
-| GET | `/api/materials/:id/file` | Materyal dosyası (Range destekli) |
-| PUT | `/api/materials/:id/progress` | Materyal sayfası/ilerlemesi kaydet |
-| GET | `/api/study/resume?course=` | “Kaldığım yer” özeti; `course` yoksa son çalışılan ders |
-| GET | `/api/study/today?date=` | Günlük çalışma oturumları ve dakikalar |
-| POST | `/api/study/sessions` | Çalışma oturumu başlat |
-| GET/PATCH | `/api/study/sessions/:id` | Oturum oku / güncelle |
-| POST | `/api/study/sessions/:id/close` | Oturumu bitir (sayfa ve dakika) |
 | PUT/DELETE | `/api/topics/:id` | Konu güncelle / sil |
 | GET/POST | `/api/assessments` | Değerlendirme listesi / ekle |
 | PUT/DELETE | `/api/assessments/:id` | Değerlendirme güncelle / sil |
