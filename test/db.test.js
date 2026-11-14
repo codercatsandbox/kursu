@@ -172,6 +172,24 @@ test('AYBÜZEM ödevi puanı ve açıklaması değerlendirmeye yazılır', () =>
   assert.equal(upsertExternalAssessment({ course_id: course.id, external_id: 'assign:42', title: 'Güncel Homework', score: 20, max_score: 20 }).id, assessment.id);
 });
 
+test('AYBÜZEM gradebook kalemi quiz olarak saklanır', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((course) => course.code === 'CENG301');
+  const grade = upsertExternalAssessment({
+    course_id: course.id,
+    external_id: 'grade:301:7',
+    source: 'aybuzem-grade',
+    type: 'quiz',
+    title: 'Quiz 1',
+    score: 8,
+    max_score: 10,
+    note: 'Feedback: Quiz açıklaması',
+  });
+  assert.equal(grade.type, 'quiz');
+  assert.equal(grade.score, 8);
+  assert.match(grade.note, /Quiz açıklaması/);
+});
+
 test('CSV dışa aktarma başlıkları ve kayıtları üretir', () => {
   const logs = exportCsv('logs');
   assert.match(logs, /^﻿?tarih;tur;kod;ad;konu;aktivite;dakika/);

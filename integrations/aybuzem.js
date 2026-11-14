@@ -334,6 +334,17 @@ function assignmentGradeMap(data) {
   return map;
 }
 
+function gradeItemType(item) {
+  if (item.itemmodule === 'assign') return 'odev';
+  if (item.itemmodule === 'quiz') return 'quiz';
+  if (item.itemmodule === 'lesson') return 'pratik';
+  return 'not';
+}
+
+function gradeItemRows(data) {
+  return (data?.usergrades || []).flatMap((user) => user.gradeitems || []);
+}
+
 export async function syncAybuzem() {
   const config = await readConfig();
   if (!config?.username) {
@@ -360,7 +371,7 @@ export async function syncAybuzem() {
     const site = await callWs(baseUrl, token, 'core_webservice_get_site_info');
     const courses = await callWs(baseUrl, token, 'core_enrol_get_users_courses', { userid: site.userid });
     const localCourses = new Map();
-    const contentSummary = { courses: 0, createdCourses: 0, sections: 0, files: 0, topics: 0, errors: [] };
+    const contentSummary = { courses: 0, createdCourses: 0, sections: 0, files: 0, topics: 0, grades: 0, errors: [] };
     for (const course of Array.isArray(courses) ? courses : []) {
       let local = matchLocalCourse(course);
       if (!local) {
@@ -384,6 +395,37 @@ export async function syncAybuzem() {
         contentSummary.topics += result.topics;
       } catch (err) {
         contentSummary.errors.push(`${course.shortname || course.fullname || course.id}: ${err.message}`);
+      }
+      if (local) {
+        try {
+          const gradeData = await callWs(baseUrl, token, 'gradereport_user_get_grade_items', {
+            courseid: course.id,
+            userid: site.userid,
+          });
+          for (const item of gradeItemRows(gradeData)) {
+            if (!item.itemname || item.itemtype === 'course' || item.itemtype === 'category') continue;
+            const externalId = item.itemmodule === 'assign' && item.iteminstance
+              ? `assign:${item.iteminstance}`
+              : `grade:${course.id}:${item.id}`;
+            const score = gradeNumber(item.graderaw ?? item.rawgrade);
+            const maxScore = gradeNumber(item.grademax);
+            const feedback = String(item.feedback || item.feedbackformatted || '').replace(/<[^>]+>/g, ' ').trim();
+            upsertExternalAssessment({
+              course_id: local.id,
+              external_id: externalId,
+              source: item.itemmodule === 'assign' ? 'aybuzem' : 'aybuzem-grade',
+              type: gradeItemType(item),
+              title: item.itemname,
+              score,
+              max_score: maxScore,
+              weight: Number.isFinite(Number(item.weightraw)) ? Number(item.weightraw) * 100 : 0,
+              note: feedback ? `Feedback: ${feedback}` : '',
+            });
+            contentSummary.grades += 1;
+          }
+        } catch (err) {
+          contentSummary.errors.push(`${course.shortname || course.fullname || course.id} notları: ${err.message}`);
+        }
       }
     }
 

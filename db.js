@@ -1057,7 +1057,7 @@ export function upsertExternalAssessment(payload) {
       score,
       maxScore,
       score !== null ? 'girildi' : 'planlandi',
-      note,
+      note || existing.note,
       existing.id,
     );
     return db.prepare('SELECT * FROM assessments WHERE id = ?').get(existing.id);
@@ -1066,9 +1066,10 @@ export function upsertExternalAssessment(payload) {
   const info = db.prepare(`
     INSERT INTO assessments
       (course_id, type, title, date, weight, score, max_score, status, note, source, external_id, sort_order)
-    VALUES (?, 'odev', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     courseId,
+    text(payload.type, 30) || 'odev',
     text(payload.title, 120) || 'AYBÜZEM ödevi',
     payload.date || null,
     num(payload.weight, 0, 0, 200),
