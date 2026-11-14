@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { HttpError, db, todayISO, upsertExternalCourse } from '../db.js';
+import { HttpError, db, todayISO, upsertExternalAssessment, upsertExternalCourse } from '../db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CONFIG_PATH = process.env.AYBUZEM_CONFIG_PATH
@@ -318,6 +318,22 @@ function courseCode(course) {
   return source.match(/\b[A-Z]{2,5}\d{3}\b/)?.[0] || `AYB-${course.id}`;
 }
 
+function gradeNumber(value) {
+  if (value === null || value === undefined || value === '' || value === '-') return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function assignmentGradeMap(data) {
+  const map = new Map();
+  for (const assignment of data?.assignments || []) {
+    for (const grade of assignment.grades || []) {
+      map.set(Number(assignment.assignmentid || assignment.id), grade);
+    }
+  }
+  return map;
+}
+
 export async function syncAybuzem() {
   const config = await readConfig();
   if (!config?.username) {
@@ -376,10 +392,36 @@ export async function syncAybuzem() {
     if (courseIds.length) {
       const data = await callWs(baseUrl, token, 'mod_assign_get_assignments', { courseids: courseIds });
       assignments = (data.courses || []).flatMap((c) => c.assignments || []);
+      let grades = new Map();
+      try {
+        const gradeData = await callWs(baseUrl, token, 'mod_assign_get_grades', {
+          assignmentids: assignments.map((assignment) => assignment.id),
+          userids: [site.userid],
+        });
+        grades = assignmentGradeMap(gradeData);
+      } catch (err) {
+        console.warn(`  AYBÜZEM assignment notları alınamadı: ${err.message}`);
+      }
       for (const assignment of assignments) {
         const local = localCourses.get(Number(assignment.course));
         upsertSyncItem(source.id, `assign:${assignment.id}`, 'assignment', local?.id ?? null, assignment);
         const due = unixToLocal(assignment.duedate);
+        const grade = grades.get(Number(assignment.id));
+        const score = gradeNumber(grade?.grade ?? grade?.rawgrade ?? grade?.graderaw);
+        const maxScore = gradeNumber(assignment.grade) ?? 100;
+        const feedback = String(grade?.feedback || grade?.feedbacktext || '').replace(/<[^>]+>/g, ' ').trim();
+        const intro = assignment.intro ? String(assignment.intro).replace(/<[^>]+>/g, ' ').trim() : '';
+        if (local) {
+          upsertExternalAssessment({
+            course_id: local.id,
+            external_id: `assign:${assignment.id}`,
+            title: assignment.name || 'AYBÜZEM ödevi',
+            date: due,
+            score,
+            max_score: maxScore,
+            note: [intro, feedback ? `Feedback: ${feedback}` : ''].filter(Boolean).join('\n\n'),
+          });
+        }
         db.prepare(`
           INSERT INTO tasks (course_id, title, kind, due_date, priority, status, note, source, external_id)
           VALUES (?, ?, 'teslim', ?, 'normal', 'acik', ?, 'aybuzem', ?)
@@ -392,7 +434,7 @@ export async function syncAybuzem() {
           local?.id ?? null,
           assignment.name || 'AYBÜZEM ödevi',
           due,
-          assignment.intro ? String(assignment.intro).replace(/<[^>]+>/g, ' ').slice(0, 500) : '',
+          [intro, feedback ? `Feedback: ${feedback}` : ''].filter(Boolean).join('\n\n').slice(0, 2000),
           `assign:${assignment.id}`,
         );
       }

@@ -20,6 +20,7 @@ const {
   saveDay,
   updateAssessment,
   upsertExternalCourse,
+  upsertExternalAssessment,
   exportCsv,
 } = await import('../db.js');
 
@@ -151,6 +152,24 @@ test('AYBÜZEM dersi lokal karşılığı yoksa normal ders kaydı oluşturur', 
 
   const second = upsertExternalCourse({ external_id: '18682', name: 'Değişmemeli' });
   assert.equal(second.id, first.id);
+});
+
+test('AYBÜZEM ödevi puanı ve açıklaması değerlendirmeye yazılır', () => {
+  const boot = getBootstrap();
+  const course = boot.courses.find((course) => course.code === 'CENG301');
+  const assessment = upsertExternalAssessment({
+    course_id: course.id,
+    external_id: 'assign:42',
+    title: 'Homework 42',
+    date: '2026-12-01',
+    score: 18,
+    max_score: 20,
+    note: 'Ödev açıklaması\n\nFeedback: İyi çalışma.',
+  });
+  assert.equal(assessment.score, 18);
+  assert.equal(assessment.max_score, 20);
+  assert.match(assessment.note, /Feedback/);
+  assert.equal(upsertExternalAssessment({ course_id: course.id, external_id: 'assign:42', title: 'Güncel Homework', score: 20, max_score: 20 }).id, assessment.id);
 });
 
 test('CSV dışa aktarma başlıkları ve kayıtları üretir', () => {
