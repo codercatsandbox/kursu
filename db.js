@@ -120,6 +120,8 @@ db.exec(`
     max_score REAL,
     status TEXT NOT NULL DEFAULT 'planlandi',
     note TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'manual',
+    external_id TEXT,
     sort_order INTEGER NOT NULL DEFAULT 0
   );
 
@@ -183,6 +185,8 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_topics_course ON topics(course_id);
   CREATE INDEX IF NOT EXISTS idx_assessments_course ON assessments(course_id);
   CREATE INDEX IF NOT EXISTS idx_assessments_date ON assessments(date);
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_external ON assessments(source, external_id)
+    WHERE external_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
   CREATE INDEX IF NOT EXISTS idx_milestones_training ON milestones(training_id);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_external ON tasks(source, external_id);
@@ -198,6 +202,20 @@ try {
 } catch (err) {
   if (!String(err.message).includes('duplicate column name')) throw err;
 }
+try {
+  db.exec("ALTER TABLE assessments ADD COLUMN source TEXT NOT NULL DEFAULT 'manual'");
+} catch (err) {
+  if (!String(err.message).includes('duplicate column name')) throw err;
+}
+try {
+  db.exec('ALTER TABLE assessments ADD COLUMN external_id TEXT');
+} catch (err) {
+  if (!String(err.message).includes('duplicate column name')) throw err;
+}
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_external ON assessments(source, external_id)
+    WHERE external_id IS NOT NULL
+`);
 
 /* --------------------------------------------------------------- helpers */
 
@@ -1073,6 +1091,53 @@ export function updateAssessment(id, payload) {
     row.id,
   );
   return db.prepare('SELECT * FROM assessments WHERE id = ?').get(row.id);
+}
+
+export function upsertExternalAssessment(payload) {
+  const courseId = Number(payload.course_id);
+  const externalId = text(payload.external_id, 120);
+  if (!courseId || !externalId) throw new HttpError(400, 'Dış değerlendirme kimliği eksik.');
+  const existing = db.prepare(
+    'SELECT * FROM assessments WHERE source = ? AND external_id = ?',
+  ).get(text(payload.source, 40) || 'aybuzem', externalId);
+  const score = nullableNum(payload.score, 0, 1000);
+  const maxScore = nullableNum(payload.max_score, 0, 1000);
+  const note = text(payload.note, 2000);
+  if (existing) {
+    db.prepare(`
+      UPDATE assessments
+         SET title = ?, date = ?, score = ?, max_score = ?, status = ?, note = ?
+       WHERE id = ?
+    `).run(
+      text(payload.title, 120) || existing.title,
+      payload.date || null,
+      score,
+      maxScore,
+      score !== null ? 'girildi' : 'planlandi',
+      note,
+      existing.id,
+    );
+    return db.prepare('SELECT * FROM assessments WHERE id = ?').get(existing.id);
+  }
+  const order = (db.prepare('SELECT COALESCE(MAX(sort_order), 0) AS n FROM assessments WHERE course_id = ?').get(courseId).n || 0) + 10;
+  const info = db.prepare(`
+    INSERT INTO assessments
+      (course_id, type, title, date, weight, score, max_score, status, note, source, external_id, sort_order)
+    VALUES (?, 'odev', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    courseId,
+    text(payload.title, 120) || 'AYBÜZEM ödevi',
+    payload.date || null,
+    num(payload.weight, 0, 0, 200),
+    score,
+    maxScore,
+    score !== null ? 'girildi' : 'planlandi',
+    note,
+    text(payload.source, 40) || 'aybuzem',
+    externalId,
+    order,
+  );
+  return db.prepare('SELECT * FROM assessments WHERE id = ?').get(Number(info.lastInsertRowid));
 }
 
 export function deleteAssessment(id) {
