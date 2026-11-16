@@ -185,8 +185,6 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_topics_course ON topics(course_id);
   CREATE INDEX IF NOT EXISTS idx_assessments_course ON assessments(course_id);
   CREATE INDEX IF NOT EXISTS idx_assessments_date ON assessments(date);
-  CREATE UNIQUE INDEX IF NOT EXISTS idx_assessments_external ON assessments(source, external_id)
-    WHERE external_id IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
   CREATE INDEX IF NOT EXISTS idx_milestones_training ON milestones(training_id);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_external ON tasks(source, external_id);
