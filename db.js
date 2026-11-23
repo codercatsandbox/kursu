@@ -180,6 +180,43 @@ db.exec(`
     UNIQUE (source_id, external_id)
   );
 
+  CREATE TABLE IF NOT EXISTS materials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    topic_id INTEGER REFERENCES topics(id) ON DELETE SET NULL,
+    external_id TEXT,
+    title TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'pdf',
+    local_path TEXT,
+    remote_url TEXT NOT NULL DEFAULT '',
+    section TEXT NOT NULL DEFAULT '',
+    module TEXT NOT NULL DEFAULT '',
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (course_id, external_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS material_progress (
+    material_id INTEGER PRIMARY KEY REFERENCES materials(id) ON DELETE CASCADE,
+    page INTEGER NOT NULL DEFAULT 1,
+    page_count INTEGER,
+    percent REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS study_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    topic_id INTEGER REFERENCES topics(id) ON DELETE SET NULL,
+    material_id INTEGER REFERENCES materials(id) ON DELETE SET NULL,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    start_page INTEGER,
+    end_page INTEGER,
+    minutes INTEGER NOT NULL DEFAULT 0,
+    note TEXT NOT NULL DEFAULT ''
+  );
+
   CREATE INDEX IF NOT EXISTS idx_logs_date ON logs(date);
   CREATE INDEX IF NOT EXISTS idx_logs_course ON logs(course_id);
   CREATE INDEX IF NOT EXISTS idx_topics_course ON topics(course_id);
@@ -188,6 +225,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
   CREATE INDEX IF NOT EXISTS idx_milestones_training ON milestones(training_id);
   CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_external ON tasks(source, external_id);
+  CREATE INDEX IF NOT EXISTS idx_materials_course ON materials(course_id);
+  CREATE INDEX IF NOT EXISTS idx_materials_topic ON materials(topic_id);
+  CREATE INDEX IF NOT EXISTS idx_study_course ON study_sessions(course_id);
+  CREATE INDEX IF NOT EXISTS idx_study_material ON study_sessions(material_id);
+  CREATE INDEX IF NOT EXISTS idx_study_started ON study_sessions(started_at);
 `);
 
 try {
@@ -249,6 +291,13 @@ export function todayISO(d = new Date()) {
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
+}
+
+export function nowLocalISO(d = new Date()) {
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return `${todayISO(d)}T${hh}:${mm}:${ss}`;
 }
 
 export function parseISO(iso) {
@@ -489,13 +538,13 @@ const TOPICS = {
 
 const ASSESSMENTS = {
   CENG301: [
-    ['vize', 'Midterm', '2026-11-14', 40],
+    ['vize', 'Midterm', '2026-11-17T09:00', 40],
     ['final', 'Final', '2027-01-14', 60],
   ],
   CENG303: [
     ['odev', 'Homework 1', '2026-10-18', 5],
     ['pratik', 'Midterm Practice Exam', '2026-11-04', 15],
-    ['vize', 'Midterm Exam', '2026-11-14', 30],
+    ['vize', 'Midterm Exam', '2026-11-18T09:00', 30],
     ['odev', 'Homework 2', '2026-12-06', 5],
     ['pratik', 'Final Practice Exam', '2027-01-06', 15],
     ['final', 'Final Exam', '2027-01-13', 30],
@@ -503,32 +552,32 @@ const ASSESSMENTS = {
   CENG305: [
     ['quiz', 'Quiz ortalaması (6 + 1 bonus)', '2026-12-21', 25],
     ['odev', 'Homework ortalaması (3)', '2026-12-14', 15],
-    ['vize', 'Midterm-I', '2026-11-14', 30],
+    ['vize', 'Midterm-I', '2026-11-16T09:00', 30],
     ['final', 'Final', '2027-01-11', 35],
   ],
   CENG327: [
     ['odev', 'Homework', '2026-12-11', 5],
     ['quiz', 'Quiz', '2026-12-04', 10],
     ['proje', 'Grup Projesi', '2027-01-08', 15],
-    ['vize', 'Midterm', '2026-11-18', 35],
+    ['vize', 'Midterm', '2026-11-18T13:30', 35],
     ['final', 'Final', '2027-01-13', 35],
   ],
   EE424: [
     ['odev', 'Homework + Quizzes', '2026-12-18', 10],
     ['proje', 'Term Project', '2027-01-08', 30],
-    ['vize', 'Midterm', '2026-11-18', 30],
+    ['vize', 'Midterm', '2026-11-20T13:50', 30],
     ['final', 'Final', '2027-01-15', 30],
   ],
   MATH101: [
-    ['vize', 'Midterm', '2026-11-14', 40],
+    ['vize', 'Midterm', '2026-11-19T11:00', 40],
     ['final', 'Final', '2027-01-09', 60],
   ],
   CENG441: [
-    ['vize', 'Midterm (syllabus bekleniyor)', '2026-11-20', 40],
+    ['vize', 'Midterm (syllabus bekleniyor)', '2026-11-16T13:30', 40],
     ['final', 'Final (syllabus bekleniyor)', '2027-01-12', 60],
   ],
   ENGR251: [
-    ['vize', 'Midterm (syllabus bekleniyor)', '2026-11-20', 40],
+    ['vize', 'Midterm (syllabus bekleniyor)', '2026-11-19T13:30', 40],
     ['final', 'Final (syllabus bekleniyor)', '2027-01-12', 60],
   ],
 };
@@ -665,6 +714,24 @@ function seed() {
        AND title IN ('Midterm', 'Midterm Exam', 'Midterm-I')
   `).run();
 
+  const examDates = {
+    CENG301: '2026-11-17T09:00',
+    CENG303: '2026-11-18T09:00',
+    CENG305: '2026-11-16T09:00',
+    CENG327: '2026-11-18T13:30',
+    EE424: '2026-11-20T13:50',
+    MATH101: '2026-11-19T11:00',
+    CENG441: '2026-11-16T13:30',
+    ENGR251: '2026-11-19T13:30',
+  };
+  const updateExamDate = db.prepare(`
+    UPDATE assessments
+       SET date = ?
+     WHERE course_id = (SELECT id FROM courses WHERE code = ?)
+       AND type = 'vize'
+  `);
+  for (const [code, date] of Object.entries(examDates)) updateExamDate.run(date, code);
+
   const imageProcessing = db.prepare("SELECT id FROM courses WHERE code = 'CENG441'").get();
   if (imageProcessing && !db.prepare("SELECT id FROM assessments WHERE course_id = ? AND type = 'quiz' AND date = '2026-10-23'").get(imageProcessing.id)) {
     db.prepare(`
@@ -715,6 +782,135 @@ function seed() {
 }
 
 seed();
+
+/* ------------------------------------------------------------- materials */
+
+function guessMaterialKind(filename, mimetype = '') {
+  const ext = path.extname(String(filename || '')).slice(1).toLowerCase();
+  if (String(mimetype).includes('pdf') || ext === 'pdf') return 'pdf';
+  if (['ppt', 'pptx', 'odp'].includes(ext)) return 'pptx';
+  if (['doc', 'docx', 'odt'].includes(ext)) return 'docx';
+  if (['html', 'htm'].includes(ext)) return 'html';
+  if (['sql', 'js', 'mjs', 'ts', 'py', 'c', 'cc', 'cpp', 'h', 'java', 'txt', 'md', 'csv', 'json'].includes(ext)) return 'text';
+  return ext || 'file';
+}
+
+function topicForSection(courseId, section, sectionIndex) {
+  const wanted = String(section || '').toLocaleLowerCase('tr').trim();
+  const topics = db.prepare('SELECT * FROM topics WHERE course_id = ? ORDER BY week, id').all(courseId);
+  if (wanted) {
+    const exact = topics.find((topic) => String(topic.title || '').toLocaleLowerCase('tr').trim() === wanted);
+    if (exact) return exact;
+  }
+  // AYBÜZEM bölümleri haftalık sırada gelir; aynı haftanın elle girilmiş
+  // konusu varsa dosyayı ona bağla.
+  if (sectionIndex) {
+    return topics.find((topic) => topic.week === sectionIndex) ?? null;
+  }
+  return null;
+}
+
+// AYBÜZEM senkronu dersin elle girilmiş konularıyla aynı haftaya "21 Eylül -
+// 27 Eylül" gibi ikinci bir konu ekleyebiliyor. Bu yinelenen otomatik konuları
+// temizle; kullanıcı konularına dokunma.
+function cleanupAybuzemSectionTopics() {
+  const rows = db.prepare(`
+    SELECT t.id
+      FROM topics t
+     WHERE t.resource = 'AYBÜZEM'
+       AND EXISTS (
+         SELECT 1 FROM topics o
+          WHERE o.course_id = t.course_id
+            AND o.week = t.week
+            AND o.id <> t.id
+            AND o.resource <> 'AYBÜZEM'
+       )
+  `).all();
+  const remove = db.prepare('DELETE FROM topics WHERE id = ?');
+  for (const row of rows) remove.run(row.id);
+  return rows.length;
+}
+
+// AYBÜZEM sync_items içindeki indirilmiş dosyaları materials tablosuna taşır.
+// Idempotenttir: aynı external_id ikinci kez eklendiğinde yol/başlık güncellenir.
+export function backfillMaterials() {
+  const rows = db.prepare(`
+    SELECT id, external_id, course_id, payload_json
+      FROM sync_items
+     WHERE kind = 'content_file' AND course_id IS NOT NULL
+     ORDER BY id
+  `).all();
+
+  const sectionsByCourse = new Map();
+  for (const row of rows) {
+    let payload = {};
+    try {
+      payload = JSON.parse(row.payload_json || '{}');
+    } catch {
+      payload = {};
+    }
+    const parts = String(payload.localPath || '').split(/[\\/]+/).filter(Boolean);
+    const section = parts.length > 2 ? parts[1] : '';
+    if (!section) continue;
+    if (!sectionsByCourse.has(row.course_id)) sectionsByCourse.set(row.course_id, new Map());
+    const sections = sectionsByCourse.get(row.course_id);
+    if (!sections.has(section)) sections.set(section, sections.size + 1);
+  }
+
+  const upsert = db.prepare(`
+    INSERT INTO materials
+      (course_id, topic_id, external_id, title, kind, local_path, remote_url,
+       section, module, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(course_id, external_id) DO UPDATE SET
+      topic_id = COALESCE(excluded.topic_id, materials.topic_id),
+      title = excluded.title,
+      kind = excluded.kind,
+      local_path = excluded.local_path,
+      remote_url = excluded.remote_url,
+      section = excluded.section,
+      module = excluded.module,
+      sort_order = excluded.sort_order
+  `);
+
+  let count = 0;
+  for (const row of rows) {
+    let payload = {};
+    try {
+      payload = JSON.parse(row.payload_json || '{}');
+    } catch {
+      payload = {};
+    }
+    const localPath = String(payload.localPath || '').trim();
+    if (!localPath) continue;
+    const parts = localPath.split(/[\\/]+/).filter(Boolean);
+    const title = String(payload.filename || parts.at(-1) || 'Materyal').trim();
+    const section = parts.length > 2 ? parts[1] : '';
+    const module = parts.length > 3 ? parts[2] : '';
+    const sectionIndex = Number(payload.sectionIndex)
+      || sectionsByCourse.get(row.course_id)?.get(section)
+      || 0;
+    const topic = topicForSection(row.course_id, section, sectionIndex);
+    const externalId = String(row.external_id || `sync:${row.id}`);
+    upsert.run(
+      row.course_id,
+      topic?.id ?? null,
+      externalId,
+      title || 'Materyal',
+      guessMaterialKind(title, payload.mimetype),
+      localPath,
+      '',
+      section,
+      module,
+      Number(payload.sortorder) || row.id,
+    );
+    count += 1;
+  }
+  return count;
+}
+
+cleanupAybuzemSectionTopics();
+backfillMaterials();
 
 /* ------------------------------------------------------------- settings */
 
@@ -838,6 +1034,7 @@ export function getCourse(id) {
   const row = courseRow(course, weekStart, weekEnd, today);
   row.topics = listTopics(course.id);
   row.assessments = listAssessments(course.id);
+  row.materials = listMaterials(course.id);
   row.recent_logs = db.prepare(`
     SELECT l.*, t.title AS topic_title
       FROM logs l LEFT JOIN topics t ON t.id = l.topic_id
@@ -985,6 +1182,418 @@ export function updateTopic(id, payload) {
 export function deleteTopic(id) {
   const info = db.prepare('DELETE FROM topics WHERE id = ?').run(Number(id));
   if (info.changes === 0) throw new HttpError(404, 'Konu bulunamadı.');
+}
+
+/* ------------------------------------------------------------ materials */
+
+function isPageKind(kind) {
+  return ['pdf', 'pptx', 'docx'].includes(String(kind || '').toLowerCase());
+}
+
+function materialRow(row) {
+  const pageCount = row.page_count ? Number(row.page_count) : null;
+  let page = Number(row.page) || 1;
+  if (pageCount) page = Math.min(pageCount, Math.max(1, page));
+  const params = new URLSearchParams({ material: String(row.id), page: String(page) });
+  if (row.course_code) params.set('course', row.course_code);
+  return {
+    ...row,
+    page,
+    page_count: pageCount,
+    percent: row.percent === null || row.percent === undefined ? 0 : Number(row.percent),
+    deep_link: `/study.html?${params.toString()}`,
+  };
+}
+
+export function listMaterials(courseId) {
+  const rows = db.prepare(`
+    SELECT m.*, c.code AS course_code, c.name AS course_name,
+           t.week AS topic_week, t.title AS topic_title,
+           p.page, p.page_count, p.percent, p.updated_at AS progress_updated_at
+      FROM materials m
+      JOIN courses c ON c.id = m.course_id
+      LEFT JOIN topics t ON t.id = m.topic_id
+      LEFT JOIN material_progress p ON p.material_id = m.id
+     WHERE m.course_id = ?
+     ORDER BY CASE WHEN t.week IS NULL THEN 999 ELSE t.week END,
+              m.sort_order, m.id
+  `).all(Number(courseId));
+  return rows.map(materialRow);
+}
+
+export function getMaterial(id) {
+  const row = db.prepare(`
+    SELECT m.*, c.code AS course_code, c.name AS course_name,
+           t.week AS topic_week, t.title AS topic_title,
+           p.page, p.page_count, p.percent, p.updated_at AS progress_updated_at
+      FROM materials m
+      JOIN courses c ON c.id = m.course_id
+      LEFT JOIN topics t ON t.id = m.topic_id
+      LEFT JOIN material_progress p ON p.material_id = m.id
+     WHERE m.id = ?
+  `).get(Number(id));
+  if (!row) throw new HttpError(404, 'Materyal bulunamadı.');
+  return materialRow(row);
+}
+
+export function saveMaterialProgress(materialId, payload = {}) {
+  const material = getMaterial(materialId);
+  const current = db.prepare('SELECT * FROM material_progress WHERE material_id = ?').get(material.id);
+  const pageCount = payload.page_count === undefined
+    ? current?.page_count ?? null
+    : nullableInt(payload.page_count, 1, 100000);
+  const page = int(payload.page ?? current?.page ?? material.page, 1, 1, 100000);
+  const boundedPage = pageCount ? Math.min(pageCount, page) : page;
+  const percent = payload.percent !== undefined
+    ? round1(num(payload.percent, 0, 0, 100))
+    : (pageCount ? round1((boundedPage / pageCount) * 100) : 0);
+
+  db.prepare(`
+    INSERT INTO material_progress (material_id, page, page_count, percent, updated_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(material_id) DO UPDATE SET
+      page = excluded.page,
+      page_count = COALESCE(excluded.page_count, material_progress.page_count),
+      percent = excluded.percent,
+      updated_at = excluded.updated_at
+  `).run(material.id, boundedPage, pageCount, percent, nowLocalISO());
+  return getMaterial(material.id);
+}
+
+/* --------------------------------------------------------- study state */
+
+function resolveCourse(ref) {
+  if (ref === null || ref === undefined || String(ref).trim() === '') return null;
+  const raw = String(ref).trim();
+  if (/^\d+$/.test(raw)) {
+    return db.prepare('SELECT * FROM courses WHERE id = ?').get(Number(raw)) ?? null;
+  }
+  const compact = raw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return db.prepare(`
+    SELECT * FROM courses
+     WHERE upper(replace(replace(code, ' ', ''), '-', '')) = ?
+     ORDER BY id DESC LIMIT 1
+  `).get(compact)
+    ?? db.prepare('SELECT * FROM courses WHERE upper(code) LIKE ? ORDER BY id DESC LIMIT 1')
+      .get(`${raw.toUpperCase()}%`)
+    ?? null;
+}
+
+function latestStudyCourse() {
+  return db.prepare(`
+    SELECT c.* FROM study_sessions s
+      JOIN courses c ON c.id = s.course_id
+     ORDER BY COALESCE(s.ended_at, s.started_at) DESC, s.id DESC
+     LIMIT 1
+  `).get()
+    ?? db.prepare(`
+      SELECT c.* FROM logs l
+        JOIN courses c ON c.id = l.course_id
+       WHERE l.course_id IS NOT NULL
+       ORDER BY l.date DESC, l.id DESC
+       LIMIT 1
+    `).get()
+    ?? db.prepare(`
+      SELECT c.* FROM courses c
+       WHERE EXISTS (SELECT 1 FROM materials m WHERE m.course_id = c.id)
+       ORDER BY c.id LIMIT 1
+    `).get()
+    ?? db.prepare('SELECT * FROM courses ORDER BY id LIMIT 1').get()
+    ?? null;
+}
+
+function resolveCourseOrThrow(ref) {
+  if (ref === null || ref === undefined || String(ref).trim() === '') {
+    const latest = latestStudyCourse();
+    if (latest) return latest;
+    throw new HttpError(404, 'Ders bulunamadı.');
+  }
+  const course = resolveCourse(ref);
+  if (!course) throw new HttpError(404, 'Ders bulunamadı.');
+  return course;
+}
+
+function materialForTopic(materials, topic) {
+  if (!topic) return null;
+  return materials.find((m) => m.topic_id === topic.id && isPageKind(m.kind))
+    ?? materials.find((m) => m.topic_id === topic.id)
+    ?? materials.find((m) => m.topic_week === topic.week && isPageKind(m.kind))
+    ?? materials.find((m) => m.topic_week === topic.week)
+    ?? materials.find((m) => String(m.section || '').toLocaleLowerCase('tr').trim()
+      === String(topic.title || '').toLocaleLowerCase('tr').trim())
+    ?? null;
+}
+
+function resumeSentence(course, state, topic, material, page, minutes) {
+  const topicText = topic
+    ? `${topic.week ? `${topic.week}. hafta ` : ''}${topic.title}`
+    : 'ders';
+
+  if (state === 'empty') {
+    return `${course.code} için henüz konu yok. Kürsü'ye konu ekleyelim.`;
+  }
+  if (state === 'fresh') {
+    return `${course.code} için henüz çalışma kaydı yok. ${topicText} konusundan başlayalım mı?`;
+  }
+  if (state === 'topic') {
+    let text = `${topicText} konusuna kadar gelmişsin.`;
+    if (material) text += ` ${material.title} ile devam edebiliriz.`;
+    return text;
+  }
+
+  let text = `En son ${topicText} konusunda`;
+  if (material) {
+    text += isPageKind(material.kind)
+      ? `, ${material.title} dosyasının ${page}. sayfasındaydın`
+      : `, ${material.title} dosyasındaydın`;
+  } else {
+    text += ' kalmışsın';
+  }
+  text += '.';
+  if (minutes > 0) text += ` ${minutes} dakika çalışmışsın.`;
+  return text;
+}
+
+export function getStudySession(id) {
+  const row = db.prepare(`
+    SELECT s.*, c.code AS course_code, c.name AS course_name,
+           t.week AS topic_week, t.title AS topic_title,
+           m.title AS material_title
+      FROM study_sessions s
+      JOIN courses c ON c.id = s.course_id
+      LEFT JOIN topics t ON t.id = s.topic_id
+      LEFT JOIN materials m ON m.id = s.material_id
+     WHERE s.id = ?
+  `).get(Number(id));
+  if (!row) throw new HttpError(404, 'Çalışma oturumu bulunamadı.');
+  return row;
+}
+
+export function createStudySession(payload = {}) {
+  const course = resolveCourse(payload.course_id ?? payload.course);
+  if (!course) throw new HttpError(400, 'Geçerli bir ders gerekli.');
+
+  let topicId = nullableInt(payload.topic_id, 1, 1_000_000_000);
+  if (topicId && !db.prepare('SELECT 1 FROM topics WHERE id = ? AND course_id = ?').get(topicId, course.id)) {
+    topicId = null;
+  }
+  let materialId = nullableInt(payload.material_id, 1, 1_000_000_000);
+  if (materialId && !db.prepare('SELECT 1 FROM materials WHERE id = ? AND course_id = ?').get(materialId, course.id)) {
+    materialId = null;
+  }
+
+  const startedAt = payload.started_at && isValidDateTime(payload.started_at)
+    ? String(payload.started_at)
+    : nowLocalISO();
+  const startPage = nullableInt(payload.start_page, 1, 100000);
+
+  const info = db.prepare(`
+    INSERT INTO study_sessions
+      (course_id, topic_id, material_id, started_at, start_page, note)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(course.id, topicId, materialId, startedAt, startPage, text(payload.note, 1000));
+
+  return getStudySession(Number(info.lastInsertRowid));
+}
+
+export function updateStudySession(id, payload = {}) {
+  const session = db.prepare('SELECT * FROM study_sessions WHERE id = ?').get(Number(id));
+  if (!session) throw new HttpError(404, 'Çalışma oturumu bulunamadı.');
+
+  let topicId = session.topic_id;
+  if (payload.topic_id !== undefined) {
+    topicId = nullableInt(payload.topic_id, 1, 1_000_000_000);
+    if (topicId && !db.prepare('SELECT 1 FROM topics WHERE id = ? AND course_id = ?').get(topicId, session.course_id)) {
+      throw new HttpError(400, 'Konu bu derse ait değil.');
+    }
+  }
+
+  let materialId = session.material_id;
+  if (payload.material_id !== undefined) {
+    materialId = nullableInt(payload.material_id, 1, 1_000_000_000);
+    if (materialId && !db.prepare('SELECT 1 FROM materials WHERE id = ? AND course_id = ?').get(materialId, session.course_id)) {
+      throw new HttpError(400, 'Materyal bu derse ait değil.');
+    }
+  }
+
+  let endedAt = session.ended_at;
+  if (payload.ended_at !== undefined) {
+    endedAt = payload.ended_at === null || payload.ended_at === '' ? null : String(payload.ended_at);
+    if (endedAt && !isValidDateTime(endedAt)) throw new HttpError(400, 'Geçersiz bitiş zamanı.');
+  }
+
+  let minutes = session.minutes;
+  if (payload.minutes !== undefined) {
+    minutes = int(payload.minutes, session.minutes, 0, 100000);
+  } else if (endedAt && !session.ended_at) {
+    const start = new Date(session.started_at);
+    const end = new Date(endedAt);
+    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime())) {
+      minutes = Math.max(0, Math.round((end - start) / 60000));
+    }
+  }
+
+  const startPage = payload.start_page === undefined
+    ? session.start_page
+    : nullableInt(payload.start_page, 1, 100000);
+  const endPage = payload.end_page === undefined
+    ? session.end_page
+    : nullableInt(payload.end_page, 1, 100000);
+  const note = payload.note === undefined ? session.note : text(payload.note, 1000);
+
+  db.prepare(`
+    UPDATE study_sessions
+       SET topic_id = ?, material_id = ?, ended_at = ?, start_page = ?,
+           end_page = ?, minutes = ?, note = ?
+     WHERE id = ?
+  `).run(topicId, materialId, endedAt, startPage, endPage, minutes, note, session.id);
+
+  if (materialId && endPage) {
+    try {
+      saveMaterialProgress(materialId, { page: endPage });
+    } catch {
+      /* materyal silinmiş olabilir; oturum kaydı yine de geçerli */
+    }
+  }
+
+  return getStudySession(session.id);
+}
+
+export function getStudyResume(courseRef) {
+  const course = resolveCourseOrThrow(courseRef);
+  const topics = listTopics(course.id);
+  const materials = listMaterials(course.id);
+
+  if (!topics.length) {
+    return {
+      course: { id: course.id, code: course.code, name: course.name },
+      state: 'empty',
+      topic: null,
+      material: null,
+      last_session: null,
+      last_log: null,
+      next_assessment: null,
+      sentence: resumeSentence(course, 'empty', null, null, 1, 0),
+      counts: { topics: 0, materials: materials.length },
+    };
+  }
+
+  const lastSession = db.prepare(`
+    SELECT * FROM study_sessions
+     WHERE course_id = ?
+     ORDER BY COALESCE(ended_at, started_at) DESC, id DESC
+     LIMIT 1
+  `).get(course.id);
+  const lastLog = db.prepare(`
+    SELECT * FROM logs WHERE course_id = ?
+     ORDER BY date DESC, id DESC LIMIT 1
+  `).get(course.id);
+
+  let state = 'fresh';
+  let topic = null;
+  if (lastSession) {
+    state = 'session';
+    topic = topics.find((t) => t.id === lastSession.topic_id) ?? null;
+  }
+  if (!topic && lastLog?.topic_id) {
+    topic = topics.find((t) => t.id === lastLog.topic_id) ?? null;
+    if (topic && state === 'fresh') state = 'topic';
+  }
+  if (!topic) {
+    topic = topics.find((t) => t.status === 'devam') ?? null;
+    if (topic) state = 'topic';
+  }
+  if (!topic) {
+    const done = topics.filter((t) => t.status === 'bitti');
+    const lastDone = done.at(-1);
+    if (lastDone) {
+      const index = topics.findIndex((t) => t.id === lastDone.id);
+      topic = topics[index + 1] ?? null;
+      if (topic) state = 'topic';
+    }
+  }
+  if (!topic) topic = topics[0];
+
+  let material = lastSession?.material_id
+    ? materials.find((m) => m.id === lastSession.material_id) ?? null
+    : null;
+  if (!material) material = materialForTopic(materials, topic);
+  if (!material) material = materials.find((m) => isPageKind(m.kind)) ?? materials[0] ?? null;
+
+  let page = material?.page ?? 1;
+  if (material && !material.progress_updated_at && lastSession?.end_page) {
+    page = lastSession.end_page;
+  }
+  if (material?.page_count) page = Math.min(material.page_count, Math.max(1, page));
+
+  const minutes = lastSession?.minutes || lastLog?.minutes || 0;
+  const nextAssessment = db.prepare(`
+    SELECT id, title, date, type FROM assessments
+     WHERE course_id = ? AND date IS NOT NULL AND date >= ?
+     ORDER BY date, id LIMIT 1
+  `).get(course.id, todayISO());
+
+  return {
+    course: { id: course.id, code: course.code, name: course.name },
+    state,
+    topic: topic ? {
+      id: topic.id,
+      week: topic.week,
+      title: topic.title,
+      status: topic.status,
+    } : null,
+    material: material ? {
+      id: material.id,
+      title: material.title,
+      kind: material.kind,
+      page,
+      page_count: material.page_count,
+      section: material.section,
+      module: material.module,
+      deep_link: material.deep_link,
+    } : null,
+    last_session: lastSession ? {
+      id: lastSession.id,
+      started_at: lastSession.started_at,
+      ended_at: lastSession.ended_at,
+      minutes: lastSession.minutes,
+      start_page: lastSession.start_page,
+      end_page: lastSession.end_page,
+    } : null,
+    last_log: lastLog ? {
+      date: lastLog.date,
+      topic_id: lastLog.topic_id,
+      minutes: lastLog.minutes,
+    } : null,
+    next_assessment: nextAssessment ?? null,
+    sentence: resumeSentence(course, state, topic, material, page, minutes),
+    counts: { topics: topics.length, materials: materials.length },
+  };
+}
+
+export function getStudyToday(date = todayISO()) {
+  if (!isValidDate(date)) throw new HttpError(400, 'Geçersiz tarih.');
+  const sessions = db.prepare(`
+    SELECT s.*, c.code AS course_code, c.name AS course_name,
+           t.week AS topic_week, t.title AS topic_title,
+           m.title AS material_title
+      FROM study_sessions s
+      JOIN courses c ON c.id = s.course_id
+      LEFT JOIN topics t ON t.id = s.topic_id
+      LEFT JOIN materials m ON m.id = s.material_id
+     WHERE substr(s.started_at, 1, 10) = ?
+        OR substr(COALESCE(s.ended_at, s.started_at), 1, 10) = ?
+     ORDER BY s.started_at DESC, s.id DESC
+  `).all(date, date);
+  const sessionMinutes = sessions.reduce((sum, s) => sum + (Number(s.minutes) || 0), 0);
+  const logMinutes = db.prepare('SELECT COALESCE(SUM(minutes), 0) AS n FROM logs WHERE date = ?').get(date).n;
+  return {
+    date,
+    sessions,
+    session_minutes: sessionMinutes,
+    log_minutes: logMinutes,
+    total_minutes: sessionMinutes + logMinutes,
+  };
 }
 
 /* ---------------------------------------------------------- assessments */
